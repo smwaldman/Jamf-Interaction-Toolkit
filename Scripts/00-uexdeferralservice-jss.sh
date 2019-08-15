@@ -25,7 +25,7 @@ fi
 # PKGs that have been deferred once enough time has elapsed OR if no one is logged in.
 # 
 # Name: deferral-service
-# Version Number: 4.2
+# Version Number: 4.2.2
 # 
 # Created Jan 18, 2016 by 
 # cubandave(https://github.com/cubandave)

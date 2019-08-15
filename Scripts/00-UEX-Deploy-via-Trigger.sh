@@ -7,7 +7,7 @@ jamfBinary="/usr/local/jamf/bin/jamf"
 # 
 # This can be used for UEX and non-UEX Policies to trigger the install policy.
 # 
-# Version Number: 4.2
+# Version Number: 4.2.2
 # 
 # Created January 31st, 2017 by
 # cubandave (https://github.com/cubandave) 

@@ -87,8 +87,8 @@ jhPath="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamf
 # 
 # User experience Post installation script to be bundled with PKG.
 # 
-# Version Number: 4.2
-	uexvers=4.2
+# Version Number: 4.2.2
+	uexvers=4.2.2
 # 
 # Created: January 23rd, 2017 by
 # cubandave(https://github.com/cubandave)
@@ -731,7 +731,7 @@ fn_check4PendingRestartsOrLogout () {
 	IFS=$'\n'
 	##This works because i'm setting the seperator
 	# shellcheck disable=SC2206
-# shellcheck disable=SC2048
+	# shellcheck disable=SC2048
 	declare -a logoutPlists=($*)  
 	unset IFS
 
@@ -870,6 +870,16 @@ fn_EjectPreviouslyMountedUpdateDisks () {
 			fn_execute_log4_JSS "/usr/sbin/diskutil eject $eachFoundDisk"
 		fi
 	done
+}
+
+
+fn_addAppToAppsList () {
+	local appToAdd="$1"
+	## only add the the apps list if it's not already there
+	if [[ "${apps[*]}" != *"$appToAdd"* ]] ; then
+		if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
+		apps+="$appToAdd"
+	fi
 }
 
 ##########################################################################################
@@ -1214,7 +1224,6 @@ No updates available."
 	fi
 
 	msUpdates2RunSilent=()
-	msUpdates2RunAfterUEX=()
 	if [[ "$msupdateUpdatesAvail" = true ]] ; then
 		
 		# Do the AutoUpdate Updates First then re check for updates
@@ -1270,8 +1279,7 @@ No updates available."
 			if [[ "$outLookappid" ]] ;then
 				checks+=" block"
 				installDuration=20
-				if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
-				apps+="Microsoft Outlook.app"
+				fn_addAppToAppsList "Microsoft Outlook.app"
 				# For Self Service Queue the install until after it's over
 				# msUpdates2RunAfterUEX+=( "$OutlookUpdateID" )
 			else
@@ -1293,8 +1301,7 @@ No updates available."
 			if [[ "$Wordappid" ]] ;then
 				checks+=" block"
 				installDuration=20
-				if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
-				apps+="Microsoft Word.app"
+				fn_addAppToAppsList "Microsoft Word.app"
 				# For Self Service Queue the install until after it's over
 				# msUpdates2RunAfterUEX+=( "$WordUpdateID" )
 			else
@@ -1315,8 +1322,7 @@ No updates available."
 			if [[ "$PowerPointappid" ]] ;then
 				checks+=" block"
 				installDuration=20
-				if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
-				apps+="Microsoft PowerPoint.app"
+				fn_addAppToAppsList "Microsoft PowerPoint.app"
 				# For Self Service Queue the install until after it's over
 				# msUpdates2RunAfterUEX+=( "$PowerPointUpdateID" )
 			else
@@ -1338,8 +1344,7 @@ No updates available."
 			if [[ "$Excelappid" ]];then
 				checks+=" block"
 				installDuration=20
-				if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
-				apps+="Microsoft Excel.app"
+				fn_addAppToAppsList "Microsoft Excel.app"
 				# For Self Service Queue the install until after it's over
 				# msUpdates2RunAfterUEX+=( "$ExcelUpdateID" )
 			else
@@ -1355,11 +1360,11 @@ No updates available."
 	 # 		Teamsappid=$( ps aux | grep "Microsoft Teams.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
 		# 	if [[ "$Teamsappid" ]] ;then
 		# 		checks+=" block"
-		installDuration=20
+		# installDuration=20
 		# 		if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
 		# 		apps+="Microsoft Teams.app"
 			## For Self Service Queue the install until after it's over# 	
-			msUpdates2RunAfterUEX+=( "$TeamsUpdateID" )
+			# msUpdates2RunAfterUEX+=( "$TeamsUpdateID" )
 			# else
 			# 	msUpdates2RunSilent+=( "$TeamsUpdateID" )
 		# 	fi # Teams App is Running
@@ -1373,11 +1378,11 @@ No updates available."
 	 # 		OneDriveappid=$( ps aux | grep "OneDrive.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
 		# 	if [[ "$OneDriveappid" ]] ;then
 		# 		checks+=" block"
-		installDuration=20
+		# installDuration=20
 		# 		if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
 		# 		apps+="OneDrive.app"
 			## For Self Service Queue the install until after it's over# 	
-			msUpdates2RunAfterUEX+=( "$OneDriveUpdateID" )
+			# msUpdates2RunAfterUEX+=( "$OneDriveUpdateID" )
 			# else
 			# 	msUpdates2RunSilent+=( "$OneDriveUpdateID" )
 		# 	fi # OneDrive App is Running
@@ -1397,8 +1402,7 @@ No updates available."
 			if [[ "$OneNoteappid" ]] ;then
 				checks+=" block"
 				installDuration=20
-				if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
-				apps+="Microsoft OneNote.app"
+				fn_addAppToAppsList "Microsoft OneNote.app"
 				# For Self Service Queue the install until after it's over
 				# msUpdates2RunAfterUEX+=( "$OneNoteUpdateID" )
 			else
@@ -1420,8 +1424,7 @@ No updates available."
 			if [[ "$SFBappid" ]] ;then
 				checks+=" block"
 				installDuration=20
-				if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
-				apps+="Skype for Business.app"
+				fn_addAppToAppsList "Skype for Business.app"
 				# For Self Service Queue the install until after it's over
 				# msUpdates2RunAfterUEX+=( "$SFBUpdateID" )
 			else
@@ -1466,7 +1469,9 @@ checking for updates..."
 
 	softwareupdate -l > "$appleSUSlog"
 
-	appleUpdates=$( cat $appleSUSlog )
+	appleUpdates="$( cat $appleSUSlog )"
+
+	log4_JSS "Apple SW Update Results: $appleUpdates"
 
 
 		
@@ -1538,20 +1543,28 @@ No updates available."
 			log4_JSS "requires restart"
 		fi
 		
-		if [[ "$appleUpdates" == *"iTunes"* ]] && [[ "$appleUpdates" == *"Safari"* ]] ; then
+		if [[ "$appleUpdates" == *"iTunes"* ]] ; then
 			checks+=" block"
 			installDuration=20
-			apps+="iTunes.app;Safari.app"
-		elif [[ "$appleUpdates" == *"iTunes"* ]] ; then
+			fn_addAppToAppsList "iTunes.app"
+		fi
+
+		if [[ "$appleUpdates" == *"Safari"* ]] ; then
 			checks+=" block"
 			installDuration=20
-			apps+="iTunes.app"
-# 			echo contains restart and iTunes updates
-		elif [[ "$appleUpdates" == *"Safari"* ]] ; then
+			fn_addAppToAppsList "Safari.app"
+		fi
+
+		if [[ "$appleUpdates" == *"Final Cut Pro X"* ]] ; then
 			checks+=" block"
 			installDuration=20
-			apps+="Safari.app"
-			log4_JSS "contains restart and safari updates"
+			fn_addAppToAppsList "Final Cut Pro.app"
+		fi
+
+		if [[ "$appleUpdates" == *"Pro Video Formats"* ]] ; then
+			checks+=" block"
+			installDuration=20
+			fn_addAppToAppsList "Final Cut Pro.app"
 		fi
 
 		if [[ "$checks" == "" ]] ;then
@@ -1573,7 +1586,7 @@ No updates available."
 		IFS="--"
 		##This works because i'm setting the seperator
 		# shellcheck disable=SC2206
-# shellcheck disable=SC2048
+		# shellcheck disable=SC2048
 		declare -a updatesfiltered=($*)  
 		unset IFS
 
@@ -2835,7 +2848,7 @@ You have until tomorrow, then you will prompted again about the $action."
 battMessage="Please note that the $modelName must be connected to a charger for a successful $action. Please connect it now. 
 "
 
-if [[ "$postponesLeft" -eq 0 ]] ; then
+if [[ "$postponesLeft" -lt 1 ]] ; then
 	battMessage+="
 Click 'No Charger' if you do not have it with you."
 
@@ -3130,6 +3143,10 @@ while [ $reqlooper = 1 ] ; do
 
 	# this is a safety net for closing and for 10.9 skiping jamfHelper windows
 	counter=0
+	
+	##need a short delay before we start checking for jamfHelper because some machines take too long
+	sleep 1
+	
 	jamfHelperOn=$( pgrep jamfHelper )
 	while [[ "$jamfHelperOn" != "" ]] ; do
 		counter=$((counter+1))

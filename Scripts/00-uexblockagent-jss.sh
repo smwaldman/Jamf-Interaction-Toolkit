@@ -34,7 +34,7 @@ SelfServiceIcon="$(fn_read_uex_Preference "SelfServiceIcon")"
 # It run through the list of apps checks to see if they are running and then kills them.
 # 
 # Name: Block-notification.sh
-# Version Number: 4.2
+# Version Number: 4.2.2
 # 
 # Created Jan 18, 2016 by 
 # cubandave(https://github.com/cubandave)
