@@ -140,7 +140,7 @@ NameConsolidated=$4
 # can also be (block restart) or (block logout)
 # NEW individual checks (macosupgrade) (saveallwork)
 # Coming soon (lock) (loginwindow)
-# aditional options (power) (nopreclose)
+# aditional options (power) (nopreclose) (forcenorecon)
 # if the install is critical add "critical"
 # if the app is available in Self Service add "ssavail"
 # LABEL: Checks
@@ -4343,7 +4343,7 @@ rm "$resultlogfilepath" > /dev/null 2>&1
 
 /bin/rm /Library/LaunchAgents/github.cubandave.UEX-jamfhelper.plist > /dev/null 2>&1 
 
-if [[ "$InventoryUpdateRequired" = true ]] ;then 
+if [[ "$InventoryUpdateRequired" = true ]] && [[ "$checks" != *"forcenorecon"* ]] ;then 
 	log4_JSS "Inventory Update Required"
 	triggerNgo uex_inventory_update_agent
 fi

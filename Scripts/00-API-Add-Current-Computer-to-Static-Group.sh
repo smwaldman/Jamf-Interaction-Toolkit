@@ -30,7 +30,7 @@ function DecryptString() {
 computerinGroup() {
 	##CURL needs indivudual expansion
 	# shellcheck disable=SC2086
-	curl ${CURL_OPTIONS} --header "Accept:application/xml" --request "GET" --user "${jss_user}:${jss_pass}" "$jss_url/JSSResource/computergroups/id/$groupNameIDLookup" | grep "<id>$computerIDLookup</id>" 
+	/usr/bin/curl ${CURL_OPTIONS} --header "Accept:application/xml" --request "GET" --user "${jss_user}:${jss_pass}" "$jss_url/JSSResource/computergroups/id/$groupNameIDLookup" | grep "<id>$computerIDLookup</id>" 
 }
 
 jss_user=$( DecryptString "$jss_userEncrptyed" )
@@ -46,11 +46,11 @@ CURL_OPTIONS="--location --insecure --silent --show-error --connect-timeout 30"
 
 ##CURL needs indivudual expansion
 # shellcheck disable=SC2086
-groupNameIDLookup=$( curl ${CURL_OPTIONS} --header "Accept: application/xml" --request "GET" --user "${jss_user}:${jss_pass}" "$jss_url/JSSResource/computergroups" | xmllint --format - | grep -B 1 ">$jssGroupname<" | /usr/bin/awk -F'<id>|</id>' '{print $2}' | sed '/^\s*$/d' )
+groupNameIDLookup=$( /usr/bin/curl ${CURL_OPTIONS} --header "Accept: application/xml" --request "GET" --user "${jss_user}:${jss_pass}" "$jss_url/JSSResource/computergroups" | xmllint --format - | grep -B 1 ">$jssGroupname<" | /usr/bin/awk -F'<id>|</id>' '{print $2}' | sed '/^\s*$/d' )
 
 ##CURL needs indivudual expansion
 # shellcheck disable=SC2086
-computerIDLookup=$( curl ${CURL_OPTIONS} --header "Accept:application/xml" --request "GET" --user "${jss_user}:${jss_pass}" "$jss_url/JSSResource/computers/udid/$computersUDID" | xpath "/computer[1]/general/id/text()" 2>/dev/null ) 
+computerIDLookup=$( /usr/bin/curl ${CURL_OPTIONS} --header "Accept:application/xml" --request "GET" --user "${jss_user}:${jss_pass}" "$jss_url/JSSResource/computers/udid/$computersUDID" | xpath "/computer[1]/general/id/text()" 2>/dev/null ) 
 GROUPXML="<computer_group><computer_additions>
 <computer>
 <id>$computerIDLookup</id>
@@ -80,7 +80,7 @@ if [[ $( computerinGroup) != "" ]] ; then
 	exit 0
 else
 	echo "Attempting to upload changes to group '$jssGroupname'"
-	curl -s -k -u "${jss_user}:${jss_pass}" "$jss_url/JSSResource/computergroups/id/$groupNameIDLookup" -X PUT -H "Content-type:application/xml" --data "$GROUPXML"
+	/usr/bin/curl -s -k -u "${jss_user}:${jss_pass}" "$jss_url/JSSResource/computergroups/id/$groupNameIDLookup" -X PUT -H "Content-type:application/xml" --data "$GROUPXML"
 fi
 
 
