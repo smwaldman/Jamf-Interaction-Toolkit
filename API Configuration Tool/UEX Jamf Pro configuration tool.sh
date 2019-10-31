@@ -76,9 +76,9 @@ fi
 if [[ "$debug" == true ]] ; then 
 	debugFolder="/private/tmp/uexdebug-$(date)/"
 	mkdir "$debugFolder"
-	curlSlientOption=""
+	curlOptions="-s --show-error -v"
 else
-	curlSlientOption="-s"
+	curlOptions="-s --show-error"
 fi
 
 jss_urlDefault="$(fn_read_uex_Preference "jss_url")"
@@ -279,14 +279,36 @@ UEXInteractionScripts=(
 
 FNputXML () 
 	{
-		# echo /usr/bin/curl "$curlSlientOption" -k "${jss_url}/JSSResource/$1/id/$2" -u "${jss_user}:${jss_pass}" -H \"Content-Type: text/xml\" -X PUT -d "$3"
-		/usr/bin/curl "$curlSlientOption" -k "${jss_url}/JSSResource/$1/id/$2" -u "${jss_user}:${jss_pass}" -H "Content-Type: text/xml" -X PUT -d "$3" > /dev/null
+# shellcheck disable=SC2086
+		# echo /usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1/id/$2" -u "${jss_user}:${jss_pass}" -H \"Content-Type: text/xml\" -X PUT -d "$3"
+		local result
+# shellcheck disable=SC2086
+		result=$(/usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1/id/$2" -u "${jss_user}:${jss_pass}" -H "Content-Type: text/xml" -X PUT -d "$3")
+		# updated to account for #86
+		if [[ "$result" == *"<html>"* ]]; then
+    		#statements
+    		echo "ERROR: There was a problem updating $1: $2"
+    		echo "$result"
+    	fi
+
     }
 
 FNpostXML () 
 	{
-		# echo /usr/bin/curl "$curlSlientOption" -k "${jss_url}/JSSResource/$1/id/0" -u "${jss_user}:${jss_pass}" -H \"Content-Type: text/xml\" -X POST -d "$2"
-		/usr/bin/curl "$curlSlientOption" -k "${jss_url}/JSSResource/$1/id/0" -u "${jss_user}:${jss_pass}" -H "Content-Type: text/xml" -X POST -d "$2" > /dev/null
+		local name
+		name="$3"
+# shellcheck disable=SC2086
+		# echo /usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1/id/0" -u "${jss_user}:${jss_pass}" -H \"Content-Type: text/xml\" -X POST -d "$2"
+		local result
+# shellcheck disable=SC2086
+		result=$(/usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1/id/0" -u "${jss_user}:${jss_pass}" -H "Content-Type: text/xml" -X POST -d "$2")
+    	# updated to account for #86
+    	if [[ "$result" == *"<html>"* ]]; then
+    		#statements
+    		echo "ERROR: There was a problem with creating a new $1: $name"
+    		echo "$result"
+    	fi
+
     }
 
 FNput_postXML () 
@@ -301,11 +323,12 @@ FNput_postXML ()
 		# echo ""
 	else
 		echo "creating $1: \"$2\""
-		FNpostXML "$1" "$3"
+		FNpostXML "$1" "$3" "$2"
 		# echo ""
 	fi
 
-	FNtestXML "$1" "$2"
+ 	# updated to account for #86
+	# FNtestXML "$1" "$2"
 	}
 
 FNput_postXMLFile () 
@@ -324,19 +347,23 @@ FNput_postXMLFile ()
 		# echo ""
 	fi
 
-	FNtestXML "$1" "$2"
+	# updated to account for #86
+	# FNtestXML "$1" "$2"
 	}
 
 FNputXMLFile () 
-	{	# echo /usr/bin/curl "$curlSlientOption" -k "${jss_url}/JSSResource/$1/id/$2" -u "${jss_user}:${jss_pass}" -H \"Content-Type: text/xml\" -X PUT -d "$3"
-		/usr/bin/curl "$curlSlientOption" -k "${jss_url}/JSSResource/$1/id/$2" -u "${jss_user}:${jss_pass}" -H "Content-Type: text/xml" -X PUT -T "$3"
+	{	# echo /usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1/id/$2" -u "${jss_user}:${jss_pass}" -H \"Content-Type: text/xml\" -X PUT -d "$3"
+		# shellcheck disable=SC2086
+		/usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1/id/$2" -u "${jss_user}:${jss_pass}" -H "Content-Type: text/xml" -X PUT -T "$3"
 	}
 
 
 FNpostXMLFile () 
 	{
-		# echo /usr/bin/curl "$curlSlientOption" -k "${jss_url}/JSSResource/$1/id/0" -u "${jss_user}:${jss_pass}" -H \"Content-Type: text/xml\" -X POST -d "$2"
-		/usr/bin/curl "$curlSlientOption" -k "${jss_url}/JSSResource/$1/id/0" -u "${jss_user}:${jss_pass}" -H "Content-Type: text/xml" -X POST -T "$2"
+		# shellcheck disable=SC2086
+		# echo /usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1/id/0" -u "${jss_user}:${jss_pass}" -H \"Content-Type: text/xml\" -X POST -d "$2"
+		# shellcheck disable=SC2086
+		/usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1/id/0" -u "${jss_user}:${jss_pass}" -H "Content-Type: text/xml" -X POST -T "$2"
 	}
 
 FNtestXML () 
@@ -362,14 +389,17 @@ FNgetID ()
 
 		if [[ "$debug" == true ]] ; then
 			logfile="$debugFolder$1-for$2-$(date).xml"
-			/usr/bin/curl "$curlSlientOption" -k "${jss_url}/JSSResource/$1" -u "${jss_user}:${jss_pass}" -H "Accept: application/xml" -o "$logfile"
+			# shellcheck disable=SC2086
+			/usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1" -u "${jss_user}:${jss_pass}" -H "Accept: application/xml" -o "$logfile"
 			retreivedID=$( /usr/bin/xmllint --format "$logfile" | grep -B 1 "$name" | /usr/bin/awk -F'<id>|</id>' '{print $2}' | sed '/^\s*$/d' )
 		elif [[ "$AylaMethod" == "y" ]]; then
 			logfile="$AylaMethodFolder$1-for$2-$(date).xml"
-			/usr/bin/curl "$curlSlientOption" -k "${jss_url}/JSSResource/$1" -u "${jss_user}:${jss_pass}" -H "Accept: application/xml" -o "$logfile"
+			# shellcheck disable=SC2086
+			/usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1" -u "${jss_user}:${jss_pass}" -H "Accept: application/xml" -o "$logfile"
 			retreivedID=$( /usr/bin/xmllint --format "$logfile" | grep -B 1 "$name" | /usr/bin/awk -F'<id>|</id>' '{print $2}' | sed '/^\s*$/d' )
 		else
-			retreivedID=$( /usr/bin/curl "$curlSlientOption" -k "${jss_url}/JSSResource/$1" -u "${jss_user}:${jss_pass}" -H "Accept: application/xml" | /usr/bin/xmllint --format - | grep -B 1 "$name" | /usr/bin/awk -F'<id>|</id>' '{print $2}' | sed '/^\s*$/d' )
+			# shellcheck disable=SC2086
+			retreivedID=$( /usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1" -u "${jss_user}:${jss_pass}" -H "Accept: application/xml" | /usr/bin/xmllint --format - | grep -B 1 "$name" | /usr/bin/awk -F'<id>|</id>' '{print $2}' | sed '/^\s*$/d' )
 		fi
     }
 
@@ -377,8 +407,8 @@ FNgetXML ()
 	{
 		local resourceName="$1"
 		local IDtoRead="$2"
-
-		retreivedXML=$( /usr/bin/curl "$curlSlientOption" -k "${jss_url}/JSSResource/$resourceName/id/$IDtoRead" -u "${jss_user}:${jss_pass}" -H "Accept: application/xml" )
+		# shellcheck disable=SC2086
+		retreivedXML=$( /usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$resourceName/id/$IDtoRead" -u "${jss_user}:${jss_pass}" -H "Accept: application/xml" )
 
     }
 
@@ -482,8 +512,10 @@ FNput_postXML "policies" "$APIPolicyName" "$APIPolicyXML"
 
 }
 
+
 fn_checkForSMTPServer () {
-	/usr/bin/curl "$curlSlientOption" -k "${jss_url}/JSSResource/smtpserver" -u "${jss_user}:${jss_pass}" -H "Accept: application/xml" | /usr/bin/xmllint --format - | grep -c "<enabled>true</enabled>"
+	# shellcheck disable=SC2086
+	/usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/smtpserver" -u "${jss_user}:${jss_pass}" -H "Accept: application/xml" | /usr/bin/xmllint --format - | grep -c "<enabled>true</enabled>"
 }
 
 fn_createTriggerPolicy () {
