@@ -71,7 +71,7 @@ halveInstallDurationForSSDs=false
 switchBlocktoQuitAutomatically=fasle
 
 # If you do not UEX to respect Do Not Disturb Mode and treat it like a presetation then change this to false
-supportDoNotDistrub=true
+supportDoNotDisturb=true
 
 
 ##########################################################################################
@@ -3022,7 +3022,7 @@ done
 ##########################################################################################
 
 # only run this if the admin wants this supported
-if [[ "$supportDoNotDistrub" == true ]]; then
+if [[ "$supportDoNotDisturb" == true ]]; then
 
 	# read the plist of the user 
 	doNotDisturbSetting="$(/usr/libexec/PlistBuddy -c "print doNotDisturb" "$loggedInUserHome/Library/Preferences/ByHost/com.apple.notificationcenterui.$computersUDID.plist")"
