@@ -61,7 +61,12 @@ ClearHelpTicketRequirementTrigger="remove_from_group_for_disk_space_help_ticket"
 susSetByTrigger=false
 susSettingTriggerName="set_sus_server"
 
+# #85 installduration needs to know that most macs are SSDs.. it’s 2019
+# set this to true to halve the install duration automaicallt for SSDs
+halveInstallDurationForSSDs=false
 
+# For installations less than 5 mins you may want to automaically switch block to just quit
+switchBlocktoQuitAutomatically=fasle
 
 
 ##########################################################################################
@@ -888,28 +893,30 @@ DetermineLoginState
 ##########################################################################################
 ##									SSD Calculations									##
 ##########################################################################################
+if [[ "$halveInstallDurationForSSDs" == "true" ]] ; then 
+	solidstate=$( /usr/sbin/diskutil info / | grep "Solid State" | awk 'BEGIN { FS=":" } ; { print $2}' )
 
-solidstate=$( /usr/sbin/diskutil info / | grep "Solid State" | awk 'BEGIN { FS=":" } ; { print $2}' )
+	if [[ "$solidstate" == *"Yes"* ]] ; then
+		# log computer has a solid state drive
+		solidstate=true
+	else
+		# echo computer does not have a sold state drive or is not specified
+		solidstate=false
+	fi
 
-if [[ "$solidstate" == *"Yes"* ]] ; then
-	# log computer has a solid state drive
-	solidstate=true
-else
-	# echo computer does not have a sold state drive or is not specified
-	solidstate=false
-fi
+	if [[ $solidstate = true ]] ; then
+		installDuration=$((installDuration / 2))
+	fi
+fi # halveInstallDurationForSSDs is true 
 
-if [[ $solidstate = true ]] ; then
-	installDuration=$((installDuration / 2))
-fi
-
-if [[ "$checks" == *"block"* ]] && [[ $installDuration -lt 5 ]] ; then 
-	# original_string='i love Suzi and Marry'
-	# string_to_replace_Suzi_with=Sara
-	# result_string="${original_string/Suzi/$string_to_replace_Suzi_with}"
-	checks="${checks/block/quit}"
-fi
-
+if [[ "$switchBlocktoQuitAutomatically" == "true" ]] ; then 
+	if [[ "$checks" == *"block"* ]] && [[ $installDuration -lt 5 ]] ; then 
+		# original_string='i love Suzi and Marry'
+		# string_to_replace_Suzi_with=Sara
+		# result_string="${original_string/Suzi/$string_to_replace_Suzi_with}"
+		checks="${checks/block/quit}"
+	fi
+fi #switchBlocktoQuitAutomatically is true
 
 ##########################################################################################
 ##								Pre Processing of Variables								##
