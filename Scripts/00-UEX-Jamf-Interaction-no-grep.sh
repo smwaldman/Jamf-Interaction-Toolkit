@@ -186,9 +186,9 @@ customMessage=${11}
 
 
 # for debugging
-# NameConsolidated="UEX;restart tests Dialog;1.0"
-# checks=$( echo "macosupgrade saveallwork compliance" | tr '[:upper:]' '[:lower:]' )
-# apps=""
+# NameConsolidated="UEX;Sourcetree;1.0"
+# checks=$( echo "block" | tr '[:upper:]' '[:lower:]' )
+# apps="Sourcetree.app"
 # installDuration=15
 # maxdeferConsolidated="3"
 # packages=""
@@ -451,41 +451,38 @@ for package in "${packages[@]}"; do
 		packageContents=$( pkgutil --payload-files "$pkg2install" )
 
 		for app in "${apps[@]}"; do
-			#statements
+
 			logInUEX4DebugMode "Check $package for app $app"
 			if [[ "$packageContents" == *"$app"* ]] ; then
-				#statements 
-
 				loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' | grep -v root )
 				local appfound
-				appfound=$( /usr/bin/find /Applications -maxdepth 3 -iname "$app" )
+				appfound=$( /usr/bin/find /Applications -maxdepth 3 -iname "$app" 2> /dev/null )
 				if [[ -e /Users/"$loggedInUser"/Applications/ ]] ; then
 					local userappfound
-					userappfound=$( /usr/bin/find /Users/"$loggedInUser"/Applications/ -maxdepth 3 -iname "$app" )
+					userappfound=$( /usr/bin/find "$loggedInUserHome/Applications/" -maxdepth 3 -iname "$app" 2> /dev/null)
 				fi
 				
-		# 		altpathsfound=""
 				for altpath in "${altpaths[@]}" ; do
 					
 					if [[ "$altpath" == "~"* ]] ; then 
 						altpathshort=$( echo "$altpath" | cut -c 2- )
-						altuserpath="/Users/${loggedInUser}${altpathshort}"
+						altuserpath="${loggedInUserHome}${altpathshort}"
 						if [[ -e "$altuserpath" ]] ; then 
 							local foundappinalthpath
-							foundappinalthpath=$( /usr/bin/find "$altuserpath" -maxdepth 3 -iname "$app" )
+							foundappinalthpath=$( /usr/bin/find "$altuserpath" -maxdepth 3 -iname "$app" 2> /dev/null)
 						fi
 					else
 						if [[ -e "$altpath" ]] ; then		
 							local foundappinalthpath
-							foundappinalthpath=$( /usr/bin/find "$altpath" -maxdepth 3 -iname "$app" )
+							foundappinalthpath=$( /usr/bin/find "$altpath" -maxdepth 3 -iname "$app" 2> /dev/null)
 						fi
 					fi
 				done
+
 				if [[ "$foundappinalthpath" ]] || [[ "$userappfound" ]] || [[ "$appfound" ]] ; then
-					#statements
-				log4_JSS "$package contains $app and app is already found. Classifying as an update"
-				checks+=" update"
-				break
+					log4_JSS "$package contains $app and app is already found. Classifying as an update"
+					checks+=" update"
+					break
 				fi
 				
 				
@@ -2128,12 +2125,12 @@ if [[ "$checks" == *"block"* ]] ; then
 
 	for app in "${apps[@]}" ; do
 		IFS=$'\n'
-		loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' | grep -v root )
+		loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' | grep -v root 2> /dev/null)
 		
 		appfound=$( /usr/bin/find /Applications -maxdepth 3 -iname "$app" )
 		
 		if [[ -e /Users/"$loggedInUser"/Applications/ ]] ; then
-			userappfound=$( /usr/bin/find /Users/"$loggedInUser"/Applications/ -maxdepth 3 -iname "$app" )
+			userappfound=$( /usr/bin/find /Users/"$loggedInUser"/Applications/ -maxdepth 3 -iname "$app" 2> /dev/null)
 		fi
 		
 # 		altpathsfound=""
@@ -2144,11 +2141,11 @@ if [[ "$checks" == *"block"* ]] ; then
 				altuserpath="/Users/${loggedInUser}${altpathshort}"
 				
 				if [[ -e "$altuserpath" ]] ; then 
-				foundappinalthpath=$( /usr/bin/find "$altuserpath" -maxdepth 3 -iname "$app" )
+				foundappinalthpath=$( /usr/bin/find "$altuserpath" -maxdepth 3 -iname "$app" 2> /dev/null)
 				fi
 			else
 				if [[ -e "$altpath" ]] ; then		
-					foundappinalthpath=$( /usr/bin/find "$altpath" -maxdepth 3 -iname "$app" )
+					foundappinalthpath=$( /usr/bin/find "$altpath" -maxdepth 3 -iname "$app" 2> /dev/null)
 				fi
 			fi
 			
@@ -4271,7 +4268,7 @@ $action completed."
 			appFound=""
 			userAppFound=""
 			# Find the apss in /Applications/ and ~/Applications/ and open as the user
-			appFound=$( /usr/bin/find "/Applications" -maxdepth 3 -iname "$relaunchAppName" )
+			appFound=$( /usr/bin/find "/Applications" -maxdepth 3 -iname "$relaunchAppName" 2> /dev/null)
 			userAppFound=$( /usr/bin/find "$loggedInUserHome/Applications" -maxdepth 3 -iname "$relaunchAppName" 2> /dev/null )
 			
 			if [[ "$appFound" ]] ; then
