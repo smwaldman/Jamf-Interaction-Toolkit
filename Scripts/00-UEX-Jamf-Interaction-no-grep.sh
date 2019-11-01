@@ -4,6 +4,8 @@
 # set -x
 loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' | grep -v root )
 loggedInUserHome=$( dscl . read "/Users/$loggedInUser" NFSHomeDirectory | awk '{ print $2 }' )
+computersUDID=$(system_profiler SPHardwareDataType | awk '/UUID/ { print $3; }')
+
 
 ##Saving this for later
 # CONSOLE=$(/usr/bin/python -c 'from SystemConfiguration import SCDynamicStoreCopyConsoleUser; import sys; username = (SCDynamicStoreCopyConsoleUser(None, None, None) or [None])[0]; username = [username,""][username in [u"loginwindow", None, u""]]; sys.stdout.write(username + "\n");')
@@ -67,6 +69,9 @@ halveInstallDurationForSSDs=false
 
 # For installations less than 5 mins you may want to automaically switch block to just quit
 switchBlocktoQuitAutomatically=fasle
+
+# If you do not UEX to respect Do Not Disturb Mode and treat it like a presetation then change this to false
+supportDoNotDistrub=true
 
 
 ##########################################################################################
@@ -3004,7 +3009,7 @@ for app in "${presentationApps[@]}" ; do
 	# shellcheck disable=SC2009
 	appid=$( ps aux | grep "$app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
 	unset IFS
-# 	echo Processing application $app
+	# echo Processing application $app
 	if  [ "$appid" != "" ] ; then
 		log4_JSS "Application $app is Running"
 		presentationRunning=true
@@ -3012,6 +3017,21 @@ for app in "${presentationApps[@]}" ; do
 done
 
 
+##########################################################################################
+##								DO NOT DISTRUB DETECTION								##
+##########################################################################################
+
+# only run this if the admin wants this supported
+if [[ "$supportDoNotDistrub" == true ]]; then
+
+	# read the plist of the user 
+	doNotDisturbSetting="$(/usr/libexec/PlistBuddy -c "print doNotDisturb" "$loggedInUserHome/Library/Preferences/ByHost/com.apple.notificationcenterui.$computersUDID.plist")"
+	if [[ "$doNotDisturbSetting" == true ]]; then
+		log4_JSS "User has Do Not Disturb enabled."
+		presentationRunning=true
+	fi
+	
+fi
 
 
 ##########################################################################################
@@ -3086,7 +3106,7 @@ while [ $reqlooper = 1 ] ; do
 		echo 0 > "$PostponeClickResultFile"
 		PostponeClickResult=0
 		skipNotices=true
-		# Only run presetation dely if the user is alllowed to postpone and has postponse avalable
+		# Only run presentation delay if the user is alllowed to postpone and has postpones avalable
 		# this means that if they exhaust postpones its because they chose to and we only wiat a max of 3 hour for them to be try and delay after that presetaion delay is not possible
 	elif [[ "$presentationRunning" = true ]] && [[ $presentationDelayNumber -lt 3 ]] && [[ $selfservicePackage != true ]] && [[ "$checks" != *"critical"* ]] && [[ $maxdefer -ge 1 ]] && [[ $delayNumber -lt $maxdefer ]] ; then
 		echo 3600 > "$PostponeClickResultFile"
@@ -3097,7 +3117,7 @@ while [ $reqlooper = 1 ] ; do
 		delayNumber=$((delayNumber-1))
 		skipNotices=true
 		skipOver=true
-		# if an presetation presentation is running and the max defer is 0 or critical then allow only one presentaion delay
+		# if an presentation presentation is running and the max defer is 0 or critical then allow only one presentaion delay
 	elif [[ "$presentationRunning" = true ]] && [[ $presentationDelayNumber -lt 1 ]] && [[ $selfservicePackage != true ]] && [[ $maxdefer = 0 ]] ; then
 		echo 3600 > "$PostponeClickResultFile"
 		PostponeClickResult=3600
