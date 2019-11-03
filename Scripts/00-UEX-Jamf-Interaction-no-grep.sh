@@ -860,7 +860,14 @@ fn_EjectPreviouslyMountedUpdateDisks () {
 
 	## Eject disks with known names for containing macOS Updates"
 	for disk2Eject in "${knownDisks[@]}" ; do
-		knownDisksFound=( "$( /usr/sbin/diskutil list | grep "$disk2Eject" | awk '{print$NF}' | sed 's/.\{2\}$//' )")
+		
+		knownDisksFound=()
+		while IFS='' read -r line; do 
+			knownDisksFound+=("$line")
+		done < <( /usr/sbin/diskutil list |\
+					 grep "$disk2Eject" |\
+					 awk '{print$NF}' |\
+					 sed 's/.\{2\}$//')
 		for eachKnownDisk in "${knownDisksFound[@]}" ; do
 			if [[ "$eachKnownDisk" == *"disk"* ]] ; then
 				echo "ejecting disk $eachKnownDisk"
@@ -870,7 +877,15 @@ fn_EjectPreviouslyMountedUpdateDisks () {
 	done
 
 	## Eject disks with the naming convetion "Apple_HFS macOS 10.1* Update"
-	commonDiskNames=( "$( /usr/sbin/diskutil list | grep "Apple_HFS macOS 10.1" | grep "Update" | awk '{print$NF}' | sed 's/.\{2\}$//' )" )
+	commonDiskNames=()
+		
+		while IFS='' read -r line; do 
+			commonDiskNames+=("$line")
+		done < <( /usr/sbin/diskutil list |\
+					grep "Apple_HFS macOS 10.1" |\
+					grep "Update" | awk '{print$NF}' |\
+					sed 's/.\{2\}$//')
+		
 	for eachFoundDisk in "${commonDiskNames[@]}" ; do
 		if [[ "$eachFoundDisk" == *"disk"* ]] ; then
 			echo "ejecting disk $eachFoundDisk"

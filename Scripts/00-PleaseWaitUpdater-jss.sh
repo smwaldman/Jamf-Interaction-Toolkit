@@ -63,17 +63,11 @@ sleep 10
 # while PleaseWait.app is running 
 while [ -n "$( pgrep PleaseWait )" ] ; do 
 
-IFS=$'\n'
-# Get a list of plist from the UEX folder
-plists=( "$( find "$UEXFolderPath" -name '*.plist' | grep -v resources )" )
-unset IFS
-
-# set -- "$plists" 
-# IFS=$'\n'
-# ##This works because i'm setting the seperator
-# # shellcheck disable=SC2048
-# declare -a plists=($*)
-# unset IFS
+plists=()
+while IFS='' read -r line; do 
+	plists+=("$line")
+done < <( find "$UEXFolderPath" -name '*.plist' |\
+			grep -v resources)
 
 installjss="$UEXFolderPath/install_jss/"
 

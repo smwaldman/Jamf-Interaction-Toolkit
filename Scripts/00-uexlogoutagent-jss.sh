@@ -103,28 +103,27 @@ loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' )
 lastReboot=$( date -jf "%s" "$(sysctl kern.boottime | awk -F'[= |,]' '{print $6}')" "+%s" )
 lastRebootFriendly=$( date -r "$lastReboot" )
 
-IFS=$'\n' 
+
+resartPlists=()
 ## Need the plist as a file name in list format
 # shellcheck disable=SC2010
-resartPlists=( "$( ls "$UEXFolderPath"/restart_jss/| grep ".plist" )" )
+while IFS='' read -r line; do 
+	resartPlists+=("$line")
+done < <( ls "$UEXFolderPath/resartPlists/" |\
+		 grep ".plist")
 
-# resartPlists=$( ls $UEXFolderPath/restart_jss/ | grep ".plist" )
-# set -- "$resartPlists"
-# ##This works because i'm setting the seperator
-# # shellcheck disable=SC2048
-# IFS=$'\n' ; declare -a resartPlists=($*)  
-# unset IFS
+
+
 ## Need the plist as a file name in list format
 # shellcheck disable=SC2010
-logoutPlists=( "$( ls "$UEXFolderPath"/logout_jss/| grep ".plist" )" )
-unset IFS
+logoutPlists=()
+## Need the plist as a file name in list format
+# shellcheck disable=SC2010
+while IFS='' read -r line; do 
+	logoutPlists+=("$line")
+done < <( ls "$UEXFolderPath/logout_jss/" |\
+		 grep ".plist")
 
-# logoutPlists=$( ls $UEXFolderPath/logout_jss/ | grep ".plist" )
-# set -- "$logoutPlists" 
-# ##This works because i'm setting the seperator
-# # shellcheck disable=SC2048
-# IFS=$'\n' ; declare -a logoutPlists=($*)  
-# unset IFS
 
 ##########################################################################################
 ##					Notification if there are scheduled restarts						##

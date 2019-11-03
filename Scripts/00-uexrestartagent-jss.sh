@@ -120,19 +120,13 @@ lastRebootFriendly=$( date -r "$lastReboot" )
 
 # runDate=$( date +%s )
 
-IFS=$'\n'
+plists=()
 ## Need the plist as a file name in list format
 # shellcheck disable=SC2010
-plists=( "$( ls "$UEXFolderPath"/restart_jss/| grep ".plist" )" )
-unset IFS
-
-# plists=$( ls "$UEXFolderPath"/restart_jss/ | grep ".plist" )
-
-# set -- "$plists" 
-# ##This works because i'm setting the seperator
-# # shellcheck disable=SC2048
-# IFS=$'\n' ; declare -a plists=($*)  
-# unset IFS
+while IFS='' read -r line; do 
+	plists+=("$line")
+done < <( ls "$UEXFolderPath/resartPlists/" |\
+		 grep ".plist")
 
 for i in "${plists[@]}" ; do
 	# Check all the plist in the folder for any required actions
