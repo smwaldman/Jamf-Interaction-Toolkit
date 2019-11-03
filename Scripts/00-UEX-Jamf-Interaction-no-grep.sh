@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # used for major debugging
-set -x
+# set -x
 loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' | grep -v root )
 loggedInUserHome=$( dscl . read "/Users/$loggedInUser" NFSHomeDirectory | awk '{ print $2 }' )
 computersUDID=$(system_profiler SPHardwareDataType | awk '/UUID/ { print $3; }')
@@ -196,15 +196,15 @@ customMessage=${11}
 
 
 # for debugging
-NameConsolidated="UEX;Microsoft Updates;1.0"
-checks=$( echo "msupdate word" | tr '[:upper:]' '[:lower:]' )
-apps=""
-installDuration=15
-maxdeferConsolidated="3"
-packages=""
-triggers="msupdate"
-customMessage=""
-debug=""
+# NameConsolidated="UEX;Microsoft Updates;1.0"
+# checks=$( echo "msupdate excel" | tr '[:upper:]' '[:lower:]' )
+# apps=""
+# installDuration=15
+# maxdeferConsolidated="3"
+# packages=""
+# triggers="msupdate"
+# customMessage=""
+# debug=""
 
 
 # selfservicePackage="true"
