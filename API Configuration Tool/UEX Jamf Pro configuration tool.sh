@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+# set -x
 loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' | grep -v root )
 
 fn_write_uex_Preference () {
