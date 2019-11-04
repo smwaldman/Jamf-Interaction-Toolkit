@@ -505,7 +505,7 @@ FNtestXML ()
 		# echo ""
 	# else
 		echo "ERROR $1 \"$2\" does not exist" 
-		exit 1
+		fn_genericDialogCocoaDialogStyleError "ERROR $1 \"$2\" does not exist" "$standardIcon" "1"
 	fi
 	}
 
