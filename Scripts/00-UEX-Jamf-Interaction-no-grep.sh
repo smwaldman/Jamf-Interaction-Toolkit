@@ -197,14 +197,14 @@ customMessage=${11}
 
 # for debugging
 # NameConsolidated="UEX;Microsoft Updates;1.0"
-# checks=$( echo "msupdate excel" | tr '[:upper:]' '[:lower:]' )
+# checks=$( echo "msupdate word debug compliance" | tr '[:upper:]' '[:lower:]' )
 # apps=""
 # installDuration=15
 # maxdeferConsolidated="3"
 # packages=""
 # triggers="msupdate"
 # customMessage=""
-# debug=""
+# debug="true"
 
 
 # selfservicePackage="true"
@@ -1139,7 +1139,8 @@ fn_check_4_msupdate () {
 	echo "" > "$msupdateLog"
 	echo "" > "$msupdateLogPlist"
 	sudo -u "$currentConsoleUserName" "$msupdateBinary" -l | /usr/bin/tee -a "$msupdateLog"
-	sudo -u "$currentConsoleUserName" "$msupdateBinary" -l -f p | /usr/bin/tee -a "$msupdateLogPlist"
+	# redect the output to that it's silent in the policy log
+	sudo -u "$currentConsoleUserName" "$msupdateBinary" -l -f p | /usr/bin/tee -a "$msupdateLogPlist" > /dev/null 2>&1
 }
 
 
@@ -1158,26 +1159,32 @@ fn_getMSupdatePackageURLs_and_names () {
 fn_ProcessMsUpdateTargetApp () {
 	case "$checks" in
 		*"excel"* )
+		log4_JSS "UEX is set to check for and install updates only for MS Excel"
 		msUpdatePackageString="Excel"
 		msUpdateString="Excel"
 			;;
 		*"onenote"* )
+		log4_JSS "UEX is set to check for and install updates only for MS OneNote"
 		msUpdatePackageString="OneNote"
 		msUpdateString="OneNote"
 			;;
 		*"outlook"* )
+		log4_JSS "UEX is set to check for and install updates only for MS Outlook"
 		msUpdatePackageString="Outlook"
 		msUpdateString="Outlook"
 			;;
 		*"powerpoint"* )
+		log4_JSS "UEX is set to check for and install updates only for MS PowerPoint"
 		msUpdatePackageString="PowerPoint"
 		msUpdateString="PowerPoint"
 			;;
 		*"word"* )
+		log4_JSS "UEX is set to check for and install updates only for MS Word"
 		msUpdatePackageString="Word"
 		msUpdateString="Word"
 			;;
 		*"sfb"* )
+		log4_JSS "UEX is set to check for and install updates only for MS SkypeForBusines"
 		msUpdatePackageString="SkypeForBusines"
 		msUpdateString="Skype For Business"
 			;;
@@ -1238,6 +1245,7 @@ fn_downloadMSupdatePackages () {
 					rm "$tmpMSupdateDownloadDestination"
 				fi
 				
+				log4_JSS "Downloading $msUpdatePackageFileName..."
 				# download to temp directory first
 				check4DownloadError=""
 				check4DownloadError=$(curl -o "$tmpMSupdateDownloadDestination" --show-error --silent --remote-name --location "$msUpdatePackage")
@@ -1247,8 +1255,10 @@ fn_downloadMSupdatePackages () {
 					echo "$check4DownloadError"
 				else
 					# Install MS Auto AutoUpdate Right Away
+					msupdateAutoUpdatePKG=""
 					if [[ "$msUpdatePackageFileName" == *"AutoUpdate"* ]]; then
 						"$jamfBinary" install -package "$msUpdatePackageFileName" -path "/private/tmp" -target /
+						msupdateAutoUpdatePKG=true
 					else
 						mv "$tmpMSupdateDownloadDestination" "$MSupdateDownloadDestination"
 					fi
@@ -1260,7 +1270,7 @@ fn_downloadMSupdatePackages () {
 				# add the package name to the packages variable to use the native isntaller method
 				if [[ $packages == *".pkg" ]] ; then  packages+=";" ;  fi
 				packages+="$msUpdatePackageFileName"
-			else
+			elif [[ "$msupdateAutoUpdatePKG" != true ]] ; then 
 				log4_JSS "Downloading $msUpdatePackageFileName Failed"
 				# msUpdateDownloadFailed=true
 			fi
@@ -1268,6 +1278,17 @@ fn_downloadMSupdatePackages () {
 		fi
 
 	done
+
+	if [[ -z "$packages" ]] && [[ "$msupdateAutoUpdatePKG" != "true" ]]; then
+		log4_JSS "None of the target MS apps in the policy have updates."
+		msupdatesUpdatesList=""
+		msupdateUpdatesAvail=false
+		checks="quit msupdate"
+		apps="xayasdf.app;asdfasfd.app"
+		installDuration=1
+		
+		skipNotices="true"
+	fi
 }
 
 if [[ "$checks" == *"msupdate"* ]] ; then
@@ -1311,7 +1332,7 @@ checking for updates..."
 		msupdateUpdatesAvail=false
 	# 	echo No new software available.
 	# 	echo No new software available no interacton required no notice to show
-		checks="quit"
+		checks="quit msupdate"
 		apps="xayasdf.app;asdfasfd.app"
 		installDuration=1
 		
@@ -1342,7 +1363,7 @@ No updates available."
 					msupdateUpdatesAvail=false
 					msupdatesUpdatesList=""
 
-					checks="quit"
+					checks="quit msupdate"
 					apps="xayasdf.app;asdfasfd.app"
 					installDuration=1
 					
@@ -1419,7 +1440,7 @@ No updates available."
 
 		## Teams with MAU is not supported yet
 		# if [[ "$msupdatesUpdatesList" == *"Teams"* ]] ; then
-			 		Teamsappid=$( ps aux | grep "Microsoft Teams.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
+			 		# Teamsappid=$( ps aux | grep "Microsoft Teams.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
 		# 	if [[ "$Teamsappid" ]] ;then
 		# 		checks+=" block"
 		# installDuration=20
@@ -1431,7 +1452,7 @@ No updates available."
 
 		## OneDrive with MAU is not supported yet
 		# if [[ "$msupdatesUpdatesList" == *"OneDrive"* ]] ; then
-			 		OneDriveappid=$( ps aux | grep "OneDrive.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
+			 		# OneDriveappid=$( ps aux | grep "OneDrive.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
 		# 	if [[ "$OneDriveappid" ]] ;then
 		# 		checks+=" block"
 		# installDuration=20
@@ -1527,7 +1548,7 @@ Downloading updates."
 		appleUpdatesAvail=false
 	# 	echo No new software available.
 	# 	echo No new software available no interacton required no notice to show
-		checks="quit"
+		checks="quit suspackage"
 		apps="xayasdf.app;asdfasfd.app"
 		installDuration=1
 		
@@ -3051,7 +3072,7 @@ done
 if [[ "$supportDoNotDisturb" == true ]]; then
 
 	# read the plist of the user 
-	doNotDisturbSetting="$(/usr/libexec/PlistBuddy -c "print doNotDisturb" "$loggedInUserHome/Library/Preferences/ByHost/com.apple.notificationcenterui.$computersUDID.plist")"
+	doNotDisturbSetting="$(/usr/libexec/PlistBuddy -c "print doNotDisturb" "$loggedInUserHome/Library/Preferences/ByHost/com.apple.notificationcenterui.$computersUDID.plist" 2> /dev/null)"
 	if [[ "$doNotDisturbSetting" == true ]]; then
 		log4_JSS "User has Do Not Disturb enabled."
 		presentationRunning=true
@@ -3310,12 +3331,13 @@ if [[ $forceInstall = true ]] && [[ "$checks" == *"compliance"* ]] ; then
 	#statements
 	complianceDescription="This $action is required for compliance and security reasons. 
 
-As it has been put off beyond the limit, this will now be installed automatically.
-
-In the future, to avoid forceful interruptions please try to run this $action before you run out of postponements.
+As it has been put off beyond the limit, this will now be installed automatically. In the future, to avoid forceful interruptions please try to run this $action before you run out of postponements.
 
 Thank you,
-$jamfOpsTeamName"
+$jamfOpsTeamName
+
+
+"
 
 	"$jhPath" -windowType hud -lockHUD -title "$title" -heading "Compliance $actionation - $heading" -description "$complianceDescription" -button1 "OK" -icon "$icon" -windowPosition lr -timeout 300 | grep -v 239 &
 fi
@@ -4344,6 +4366,13 @@ fi # Installations ''
 rm "$resultlogfilepath" > /dev/null 2>&1 
 
 /bin/rm /Library/LaunchAgents/github.cubandave.UEX-jamfhelper.plist > /dev/null 2>&1 
+
+# Disable Inventory Updates for MS Update and ASUS if there's no updates avaialable
+if [[ "$checks" == *"msupdate"* ]] && [[ "$msupdateUpdatesAvail" == false ]] ; then
+	InventoryUpdateRequired=false
+elif [[ "$checks" == *"suspackage"* ]] && [[ "$appleUpdatesAvail" == false ]] ; then
+	InventoryUpdateRequired=false
+fi
 
 if [[ "$InventoryUpdateRequired" = true ]] && [[ "$checks" != *"forcenorecon"* ]] ;then 
 	log4_JSS "Inventory Update Required"
