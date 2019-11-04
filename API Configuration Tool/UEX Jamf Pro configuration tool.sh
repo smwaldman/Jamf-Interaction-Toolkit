@@ -1,5 +1,5 @@
 #!/bin/bash
-# set -x
+set -x
 loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' | grep -v root )
 
 fn_write_uex_Preference () {
@@ -161,8 +161,33 @@ OSA
 	myTempResult="$(echo "$myTempResult" | awk -F':' '{ print $2 }')"
 }
 
+# fn_genericDialogCocoaDialogStyleError "This is the text" "$standardIcon" "exitCode"
+fn_genericDialogCocoaDialogStyleError() {
+   
+    myTempResult=""
+    myTempResult=$(osascript <<OSA
+        display dialog "$(printf '%s\n' "$1")" with title "$(printf '%s' "$title")" buttons {"OK"} with icon POSIX file "$(printf '%s' "$2")" default button 1
 
-### Script 
+OSA
+)
+	fn_cleanExit "$3"
+}
+
+
+# fn_genericDialogCocoaDialogStyleMessage "This is the text" "$standardIcon"
+fn_genericDialogCocoaDialogStyleMessage() {
+   
+    myTempResult=""
+    myTempResult=$(osascript <<OSA
+        display dialog "$(printf '%s\n' "$1")" with title "$(printf '%s' "$title")" buttons {"OK"} with icon POSIX file "$(printf '%s' "$2")" default button 1
+
+OSA
+)
+}
+
+##########################################################################################
+#		 							Data Gathering!										 #
+##########################################################################################
 
 AylaMethodDefault="$(fn_read_uex_Preference "JamfCloud")"
 AylaMethodDefault="${AylaMethodDefault:-Yes}"
@@ -189,8 +214,12 @@ if [[ "$AylaMethod" == "y" ]] ; then
 	if [[ ! -d "$AylaMethodFolder" ]] ;then
 		mkdir "$AylaMethodFolder"
 	fi
-	printf "This will write all the XMLs from the GET Commands to %s \n" "$AylaMethodFolder"
-	printf "THEN it will delete the folder when done\n"
+
+	AylaMethodNotification="This will write all the XMLs from the GET Commands to 
+$AylaMethodFolder
+Then it will delete the folder when done"
+	fn_genericDialogCocoaDialogStyleMessage "$AylaMethodNotification" "$standardIcon"
+
 fi
 
 DebugMessage="Do you want to enable debug mode?"
@@ -853,9 +882,10 @@ fn_openAPIPolicies () {
 
 if [[ "$helpTicketsEnabledViaAppRestriction" = true ]] || [[ "$helpTicketsEnabledViaGeneralStaticGroup" = true ]] ;then
 	if [[ $(fn_checkForSMTPServer) -eq 0 ]] ; then
-		echo "no SMTP server configured." 
-		echo "Please check your Jamf Pro server or disbale helpTicketsEnabledViaAppRestriction or helpTicketsEnabledViaGeneralStaticGroup"
-		exit 1
+		SMTPNotification="No SMTP server configured. 
+Please check your Jamf Pro server or disbale helpTicketsEnabledViaAppRestriction or helpTicketsEnabledViaGeneralStaticGroup"
+		fn_genericDialogCocoaDialogStyleError "$SMTPNotification" "$standardIcon" "1"
+		
 	fi
 fi
 
@@ -884,8 +914,10 @@ fi
 	for script in "${scripts[@]}" ; do 
 		FNgetID "scripts" "$script" 
 		if [ -z "$retreivedID" ] ; then
-			echo ERROR: Script "$script" not found on jamf server "$jss_url"
-			exit 1
+
+			ScriptNotification="ERROR: Script "$script" not found on jamf server "$jss_url""
+			fn_genericDialogCocoaDialogStyleError "$ScriptNotification" "$standardIcon" "1"
+
 		else
 			echo "updating category on \"$script\" to \"$UEXCategoryName\""
 			fn_updateCategory "$retreivedID" "script" "$UEXCategoryName" "scripts"
@@ -895,8 +927,10 @@ fi
 	for package in "${packages[@]}" ; do 
 		FNgetID "packages" "$package" 
 		if [ -z "$retreivedID" ] ; then
-			echo ERROR: Package "$package" not found on jamf server "$jss_url"
-			exit 1
+
+			PackageError="ERROR: Package $package not found on jamf server $jss_url"
+			fn_genericDialogCocoaDialogStyleError "$PackageError" "$standardIcon" "1"
+
 		else
 			echo "updating category on \"$package\" to \"$UEXCategoryName\""
 			fn_updateCategory "$retreivedID" "package" "$UEXCategoryName" "packages"
@@ -935,8 +969,9 @@ fi
 	extAttrName="UEX - Deferral Detection"
 	FNgetID computerextensionattributes "$extAttrName"
 	if [ -z "$retreivedID" ] ;then
-		echo ERROR: Exentsion Attribute "$extAttrName" not found on jamf server "$jss_url"
-		exit 1
+		EAError="ERROR: Exentsion Attribute $extAttrName not found on jamf server $jss_url"
+		fn_genericDialogCocoaDialogStyleError "$EAError" "$standardIcon" "1"
+
 	fi
 
 # Create smart group
@@ -970,9 +1005,11 @@ fn_createTriggerPolicy "00-uexdeferralservice-jss - Checkin and Logout" "uexdefe
 fn_createTriggerPolicy4Pkg "00-uexresources-jss - Trigger" "${packages[0]}" "uexresources" "<all_computers>true</all_computers>"
 
 if [[ "$helpTicketsEnabledViaGeneralStaticGroup" = true ]]; then
-	echo "Now Opening the Monitoring Smart Group"
-	echo "Make sure the Notification Setting is on"
-	echo "Also opening API scripts. Make sure to add the JSS User and Password"
+	OpenNotification="Now Opening the Monitoring Smart Group
+Make sure the Notification Setting is on
+Also opening API scripts. Make sure to add the JSS User and Password"
+	fn_genericDialogCocoaDialogStyleMessage "$OpenNotification" "$standardIcon"
+
 	sleep 3
 	fn_openMonitoringSmartGroup
 	fn_openAPIPolicies
@@ -981,6 +1018,7 @@ fi
 
 fn_delete_JamfUEXGETfolder
 
+fn_genericDialogCocoaDialogStyleMessage "The world is now your burrito!🌯" "$standardIcon"
 echo "The world is now your burrito!"
 
 
