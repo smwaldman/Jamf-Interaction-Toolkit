@@ -30,7 +30,42 @@ fn_delete_JamfUEXGETfolder () {
 UEXhelpticketTrigger="add_to_group_for_disk_space_help_ticket"
 ClearHelpTicketRequirementTrigger="remove_from_group_for_disk_space_help_ticket"
 
-standardIcon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
+##########################################################################################
+##									Icon Magic  										##
+##########################################################################################
+
+fn_check4DarkMode (){
+
+	local DarkModeCheck
+	DarkModeCheck=$(defaults read -g AppleInterfaceStyle 2> /dev/null)
+
+	if [[ -n "$DarkModeCheck" ]]; then
+		echo Dark
+	else
+		echo Light
+	fi
+
+}
+
+dir=$( unset CDPATH && cd "$(dirname "$0")" && echo "$PWD" )
+
+imagesDIR="${dir//API Configuration Tool/images}"
+
+UexLightIcon="$imagesDIR/uex_logo_pride_black.png"
+UexDarkIcon="$imagesDIR/uex_logo_pride_white.png"
+
+if [[ "$(fn_check4DarkMode)" == Dark ]];then
+	UexIcon="$UexDarkIcon"
+else
+	UexIcon="$UexLightIcon"
+fi
+
+
+if [[ -f "$UexIcon" ]]; then
+	standardIcon="$UexIcon"
+else
+	standardIcon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
+fi
 
 title="UEX - Jamf Pro Configuration Tool"
 
@@ -59,8 +94,10 @@ fn_getAPICredentials	() {
 		fn_Check2SaveDefault "DefaultJssUser" "$DefaultJssUser" "$jss_user"
 	fi
 
+	jss_passMessage="Please enter your current password for the account: (default: jamf1234)"
+	fn_genericDialogCocoaDialogStyleHiddenAnswer "$title" "$jss_passMessage" "" "jamf1234" "Cancel" "OK" "" "$standardIcon"
+	jss_pass="$myTempResult"
 
-	jss_pass="$(sudo -u "$loggedInUser" /usr/bin/osascript -e 'display dialog "Please enter your current password for the account: (default: jamf1234)" with hidden answer default answer "jamf1234" with title "UEX - Jamf Pro Configuration Tool" with text buttons {"Cancel","OK"} default button 2 with icon file ("/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns" as POSIX file)' -e 'text returned of result')"
 
 	DefaultJssURL="$(fn_read_uex_Preference "DefaultJssURL")"
 	DefaultJssURL="${DefaultJssURL:-https://cubandave.local:8443}"
@@ -127,6 +164,23 @@ fn_genericDialogCocoaDialogStyleAnswer ()
     myTempResult=$(osascript <<OSA
         try
         display dialog "$(printf '%s\n' "$2")" with title "$(printf '%s' "$1")" default answer "$(printf '%s' "$4")" buttons {"$(printf '%s' "$5")", "$(printf '%s' "$6")"} with icon POSIX file "$(printf '%s' "$8")" default button 2
+
+        on error number -128
+			set myTempResult to "result:Cancel" as text
+		end try
+OSA
+)
+	if [[ "$myTempResult" == "result:Cancel" ]] ; then /bin/echo User cancelled ; fn_cleanExit 1 ; fi
+	myTempResult="$(echo "$myTempResult" | awk -F':' '{ $1=""; $2=""; print}' | cut -c 3- )"
+}
+
+# fn_genericDialogCocoaDialogStyleAnswer "This is a title" "This is the text" "" "default answer" "Not OK" "OK" "" "caution")
+fn_genericDialogCocoaDialogStyleHiddenAnswer () 
+{
+    myTempResult=""
+    myTempResult=$(osascript <<OSA
+        try
+        display dialog "$(printf '%s\n' "$2")" with title "$(printf '%s' "$1")" with hidden answer default answer "$(printf '%s' "$4")" buttons {"$(printf '%s' "$5")", "$(printf '%s' "$6")"} with icon POSIX file "$(printf '%s' "$8")" default button 2
 
         on error number -128
 			set myTempResult to "result:Cancel" as text
@@ -407,10 +461,9 @@ UEXInteractionScripts=(
 
 FNputXML () 
 	{
-# shellcheck disable=SC2086
-		# echo /usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1/id/$2" -u "${jss_user}:${jss_pass}" -H \"Content-Type: text/xml\" -X PUT -d "$3"
+
 		local result
-# shellcheck disable=SC2086
+		# shellcheck disable=SC2086
 		result=$(/usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1/id/$2" -u "${jss_user}:${jss_pass}" -H "Content-Type: text/xml" -X PUT -d "$3")
 		# updated to account for #86
 		if [[ "$result" == *"<html>"* ]]; then
@@ -915,7 +968,7 @@ fi
 		FNgetID "scripts" "$script" 
 		if [ -z "$retreivedID" ] ; then
 
-			ScriptNotification="ERROR: Script "$script" not found on jamf server "$jss_url""
+			ScriptNotification="ERROR: Script \"$script\" not found on jamf server $jss_url"
 			fn_genericDialogCocoaDialogStyleError "$ScriptNotification" "$standardIcon" "1"
 
 		else
