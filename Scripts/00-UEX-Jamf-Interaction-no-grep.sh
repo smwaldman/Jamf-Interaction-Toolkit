@@ -73,6 +73,13 @@ switchBlocktoQuitAutomatically=fasle
 # If you do not UEX to respect Do Not Disturb Mode and treat it like a presetation then change this to false
 supportDoNotDisturb=true
 
+# msupdate needs to be changed to manual when checking for some odd reason
+# The setting below is what it will be set back to after the checking has been done
+# Set this to what ever setting you would like "https://goo.gl/UC04oZ"
+# Change how MAU interacts with updates. Note that AutomaticDownload will do a download and install silently if possible. 
+# Valid values are: Manual, AutomaticCheck, AutomaticDownload
+defaultMsauSetting="AutomaticDownload"
+
 
 ##########################################################################################
 ##						Create help Desk Ticket Via Function 							##
@@ -197,7 +204,7 @@ customMessage=${11}
 
 # for debugging
 # NameConsolidated="UEX;Microsoft Updates;1.0"
-# checks=$( echo "msupdate word debug compliance" | tr '[:upper:]' '[:lower:]' )
+# checks=$( echo "msupdate sfb debug compliance" | tr '[:upper:]' '[:lower:]' )
 # apps=""
 # installDuration=15
 # maxdeferConsolidated="3"
@@ -1135,12 +1142,21 @@ fi
 msupdateBinary="/Library/Application Support/Microsoft/MAU2.0/Microsoft AutoUpdate.app/Contents/MacOS/msupdate"
 # autoUpdateLogFile="/Library/Logs/Microsoft/autoupdate.log"
 
+fn_setMSAUHowToCheck () {
+	local property="$1"
+	defaults write com.microsoft.autoupdate2 "HowToCheck" "$property" 
+}
+
 fn_check_4_msupdate () {
+	fn_setMSAUHowToCheck "Manual"
 	echo "" > "$msupdateLog"
 	echo "" > "$msupdateLogPlist"
 	sudo -u "$currentConsoleUserName" "$msupdateBinary" -l | /usr/bin/tee -a "$msupdateLog"
 	# redect the output to that it's silent in the policy log
 	sudo -u "$currentConsoleUserName" "$msupdateBinary" -l -f p | /usr/bin/tee -a "$msupdateLogPlist" > /dev/null 2>&1
+
+	fn_setMSAUHowToCheck "$defaultMsauSetting"
+
 }
 
 
