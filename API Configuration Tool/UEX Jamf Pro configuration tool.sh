@@ -356,7 +356,7 @@ if [[ "$helpTicketsEnabledViaAppRestriction" == true ]] ;then
 	restrictedAppNameDefault="$(fn_read_uex_Preference "restrictedAppNameDefault")"
 	restrictedAppNameDefault="${restrictedAppNameDefault:-User Needs Helps Clearing Space.app}"
 
-	fn_genericDialogCocoaDialogStyleAnswer "$title" "Enter the package name for the UEX resources." "" "$restrictedAppNameDefault" "Cancel" "OK" "" "$standardIcon"
+	fn_genericDialogCocoaDialogStyleAnswer "$title" "Enter the name of the App for the app restriction." "" "$restrictedAppNameDefault" "Cancel" "OK" "" "$standardIcon"
 	restrictedAppName="$myTempResult"
 
 	if [[ "$restrictedAppName" != "$restrictedAppNameDefault" ]]; then
@@ -397,7 +397,7 @@ if [[ "$helpTicketsEnabledViaGeneralStaticGroup" == true ]] ;then
 	staticGroupNameDefault="$(fn_read_uex_Preference "staticGroupNameDefault")"
 	staticGroupNameDefault="${staticGroupNameDefault:-User Needs Helps Clearing Space}"
 
-	fn_genericDialogCocoaDialogStyleAnswer "$title" "Enter the package name for the UEX resources." "" "$staticGroupNameDefault" "Cancel" "OK" "" "$standardIcon"
+	fn_genericDialogCocoaDialogStyleAnswer "$title" "Enter the tag for the Static Group." "" "$staticGroupNameDefault" "Cancel" "OK" "" "$standardIcon"
 	staticGroupName="$myTempResult"
 
 	if [[ "$staticGroupName" != "$staticGroupNameDefault" ]]; then
@@ -876,7 +876,7 @@ restrictedsoftwareXML="<restricted_software>
 
 fn_create_staticGroup_for_Disk_Space () {
 	StaticGroupXMLForDiskSpace="<computer_group>
-  <name>$staticGroupName</name>
+  <name>UEX - $staticGroupName</name>
   <is_smart>false</is_smart>
   <site>
     <id>-1</id>
@@ -884,12 +884,12 @@ fn_create_staticGroup_for_Disk_Space () {
   </site>
 </computer_group>"
 
-	FNput_postXML "computergroups" "$staticGroupName" "$StaticGroupXMLForDiskSpace"
+	FNput_postXML "computergroups" "UEX - $staticGroupName" "$StaticGroupXMLForDiskSpace"
 }
 
 fn_create_MonititoringSmartGroup_for_Disk_Space () {
 	SmartGroupXMLForDiskSpace="<computer_group>
-  <name>Monitoring - UEX - $staticGroupName</name>
+  <name>Monitoring - UEX - Group:$staticGroupName</name>
   <is_smart>true</is_smart>
   <site>
     <id>-1</id>
@@ -902,14 +902,14 @@ fn_create_MonititoringSmartGroup_for_Disk_Space () {
       <priority>0</priority>
       <and_or>and</and_or>
       <search_type>member of</search_type>
-      <value>$staticGroupName</value>
+      <value>UEX - $staticGroupName</value>
       <opening_paren>false</opening_paren>
       <closing_paren>false</closing_paren>
     </criterion>
   </criteria>
 </computer_group>"
 
-	FNput_postXML "computergroups" "Monitoring - UEX - $staticGroupName" "$SmartGroupXMLForDiskSpace"
+	FNput_postXML "computergroups" "Monitoring - UEX - Group:$staticGroupName" "$SmartGroupXMLForDiskSpace"
 }
 
 fn_openMonitoringSmartGroup () {
