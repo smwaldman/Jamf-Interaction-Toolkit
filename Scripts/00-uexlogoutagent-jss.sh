@@ -59,7 +59,7 @@ supportDarkModeWithOnlyCustomIcon="$(fn_read_uex_Preference "supportDarkModeWith
 fn_check4DarkMode (){
 
 	local DarkModeCheck
-	DarkModeCheck=$(defaults read -g AppleInterfaceStyle 2> /dev/null)
+	DarkModeCheck=$(sudo -u "$loggedInUser" -H defaults read -g AppleInterfaceStyle 2> /dev/null)
 
 	if [[ -n "$DarkModeCheck" ]]; then
 		echo Dark
