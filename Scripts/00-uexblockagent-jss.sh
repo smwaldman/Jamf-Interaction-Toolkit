@@ -24,6 +24,7 @@ fi
 customIcon="$(fn_read_uex_Preference "customIcon")"
 UexLightIcon="$(fn_read_uex_Preference "UexLightIcon")"
 UexDarkIcon="$(fn_read_uex_Preference "UexDarkIcon")"
+# supportDarkModeWithOnlyCustomIcon="$(fn_read_uex_Preference "supportDarkModeWithOnlyCustomIcon")"
 
 ##########################################################################################
 ##########################################################################################
