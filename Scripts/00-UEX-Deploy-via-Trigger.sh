@@ -34,8 +34,9 @@ unset IFS
 
 
 for triggerName in "${triggers[@]}" ; do
+	logFile="/tmp/$triggerName-$(date "+%m%d%H%M%S%Y")"
 
-	if [[ ! $( "$jamfBinary" policy -forceNoRecon -trigger "$triggerName" ) ]] ; then
+	if [[ ! $( "$jamfBinary" policy -forceNoRecon -trigger "$triggerName" | tee -a "$logFile") ]] ; then
 		echo The policy for trigger "$triggerName" exited in a non-zero status
 		failedInstall=true
 	fi
