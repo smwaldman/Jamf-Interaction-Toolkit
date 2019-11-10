@@ -20,9 +20,10 @@ if [[ -z "$UEXFolderPath" ]] ; then
 	UEXFolderPath="/Library/Application Support/JAMF/UEX"
 fi
 
-customLogo="$(fn_read_uex_Preference "customLogo")"
 
-SelfServiceIcon="$(fn_read_uex_Preference "SelfServiceIcon")"
+customIcon="$(fn_read_uex_Preference "customIcon")"
+UexLightIcon="$(fn_read_uex_Preference "UexLightIcon")"
+UexDarkIcon="$(fn_read_uex_Preference "UexDarkIcon")"
 
 ##########################################################################################
 ##########################################################################################
@@ -56,18 +57,55 @@ CocoaDialog="$UEXFolderPath/resources/cocoaDialog.app/Contents/MacOS/CocoaDialog
 
 ##########################################################################################
 
+##########################################################################################
+##									Icon Magic  										##
+##########################################################################################
+# osMajor=$( /usr/bin/sw_vers -productVersion | awk -F. '{print $2}' )
+
+fn_check4DarkMode (){
+
+	local DarkModeCheck
+	DarkModeCheck=$(defaults read -g AppleInterfaceStyle 2> /dev/null)
+
+	if [[ -n "$DarkModeCheck" ]]; then
+		echo Dark
+	else
+		echo Light
+	fi
+
+}
+
+
+if [[ "$(fn_check4DarkMode)" == Dark ]];then
+	smartIcon="$UexDarkIcon"
+else
+	smartIcon="$UexLightIcon"
+fi
+
+# Saving for later
+# if [[ -n "$UexDarkIcon" ]] && [[ -n "$UexLightIcon" ]] ; then
+# 	windowType="utility"
+# elif [[ "$supportDarkModeWithOnlyCustomIcon" == true ]] && [[ "$osMajor" -ge 14 ]]; then 
+# 	windowType="utility"
+# else
+# 	windowType="hud"
+# fi
+
 
 ##########################################################################################
 ##							STATIC VARIABLES FOR DIALOGS								##
 ##########################################################################################
 
 #if the icon file doesn't exist then set to a standard icon
-if [[ -e "$SelfServiceIcon" ]] ; then
-	icon="$SelfServiceIcon"
-elif [ -e "$customLogo" ] ; then
-	icon="$customLogo"
+if [[ -e "$smartIcon" ]] ; then
+	# icon="$smartIcon"
+	CDicon="$UexDarkIcon"
+elif [[ -e "$customIcon" ]] ; then
+	# icon="$customIcon"
+	CDicon="$customIcon"
 else
-	icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertNoteIcon.icns"
+	# icon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
+	CDicon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
 fi
 
 ##########################################################################################
@@ -256,7 +294,7 @@ appName="${app//.app/}"
 --text "The application ${appName} cannot be opened while the $action is still in progress.
 
 Please wait for it to complete before attempting to open it." \
-	--icon-file "$icon" --icon-size 64 --independent --timeout 30
+	--icon-file "$CDicon" --icon-size 64 --independent --timeout 30
 
 
 ###############
