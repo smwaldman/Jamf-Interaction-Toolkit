@@ -210,15 +210,15 @@ customMessage=${11}
 
 
 # for debugging
-NameConsolidated="UEX;Microsoft Updates;1.0"
-checks=$( echo "quit debug " | tr '[:upper:]' '[:lower:]' )
-apps="TextEdit.app"
-installDuration=15
-maxdeferConsolidated="3"
-packages=""
-triggers="msupdate"
-customMessage=""
-debug="true"
+# NameConsolidated="UEX;Microsoft Updates;1.0"
+# checks=$( echo "quit debug " | tr '[:upper:]' '[:lower:]' )
+# apps="TextEdit.app"
+# installDuration=15
+# maxdeferConsolidated="3"
+# packages=""
+# triggers="msupdate"
+# customMessage=""
+# debug="true"
 
 
 # selfservicePackage="true"
@@ -1736,7 +1736,7 @@ else
 	smartIcon="$UexLightIcon"
 fi
 
-if [[ -n "$UexDarkIcon" ]] && [[ -n "$UexLightIcon" ]] ; then
+if [[ -e "$UexDarkIcon" ]] && [[ -e "$UexLightIcon" ]] ; then
 	windowType="utility"
 elif [[ "$supportDarkModeWithOnlyCustomIcon" == true ]] && [[ "$osMajor" -ge 14 ]]; then 
 	windowType="utility"

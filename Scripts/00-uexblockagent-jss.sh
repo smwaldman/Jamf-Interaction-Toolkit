@@ -84,7 +84,7 @@ else
 fi
 
 # Saving for later
-# if [[ -n "$UexDarkIcon" ]] && [[ -n "$UexLightIcon" ]] ; then
+# if [[ -e "$UexDarkIcon" ]] && [[ -e "$UexLightIcon" ]] ; then
 # 	windowType="utility"
 # elif [[ "$supportDarkModeWithOnlyCustomIcon" == true ]] && [[ "$osMajor" -ge 14 ]]; then 
 # 	windowType="utility"
