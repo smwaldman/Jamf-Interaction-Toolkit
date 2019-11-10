@@ -161,7 +161,7 @@ plists=()
 # shellcheck disable=SC2010
 while IFS='' read -r line; do 
 	plists+=("$line")
-done < <( ls "$UEXFolderPath/resartPlists/" |\
+done < <( ls "$UEXFolderPath/restart_jss/" |\
 		 grep ".plist")
 
 for i in "${plists[@]}" ; do

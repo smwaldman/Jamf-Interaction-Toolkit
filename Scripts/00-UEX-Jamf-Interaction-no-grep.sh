@@ -741,27 +741,21 @@ fn_check4PendingRestartsOrLogout () {
 	lastReboot=$( date -jf "%s" "$(sysctl kern.boottime | awk -F'[= |,]' '{print $6}')" "+%s" )
 	# lastRebootFriendly=$( date -r$lastReboot )
 
+	resartPlists=()
 	## Need the plist as a file name in list format
 	# shellcheck disable=SC2010
-	resartPlists=$( ls "$UEXFolderPath"/restart_jss/ | grep "plist" )
-	set -- "$resartPlists"
-	IFS=$'\n'
-	##This works because i'm setting the seperator
-	# shellcheck disable=SC2206
-	# shellcheck disable=SC2048
-	declare -a resartPlists=($*)  
-	unset IFS
+	while IFS='' read -r line; do 
+		resartPlists+=("$line")
+	done < <( ls "$UEXFolderPath/restart_jss/" |\
+			 grep ".plist")
 
+	logoutPlists=()
 	## Need the plist as a file name in list format
 	# shellcheck disable=SC2010
-	logoutPlists=$( ls "$UEXFolderPath"/logout_jss/ | grep "plist" )
-	set -- "$logoutPlists" 
-	IFS=$'\n'
-	##This works because i'm setting the seperator
-	# shellcheck disable=SC2206
-	# shellcheck disable=SC2048
-	declare -a logoutPlists=($*)  
-	unset IFS
+	while IFS='' read -r line; do 
+		logoutPlists+=("$line")
+	done < <( ls "$UEXFolderPath/logout_jss/" |\
+			 grep ".plist")
 
 	# check for any plist that are scheduled to have a restart
 	for i in "${resartPlists[@]}" ; do

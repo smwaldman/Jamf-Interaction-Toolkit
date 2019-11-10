@@ -148,7 +148,7 @@ resartPlists=()
 # shellcheck disable=SC2010
 while IFS='' read -r line; do 
 	resartPlists+=("$line")
-done < <( ls "$UEXFolderPath/resartPlists/" |\
+done < <( ls "$UEXFolderPath/restart_jss/" |\
 		 grep ".plist")
 
 
