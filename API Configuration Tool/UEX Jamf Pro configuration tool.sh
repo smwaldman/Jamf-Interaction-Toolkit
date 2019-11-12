@@ -5,12 +5,12 @@ loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' | grep -v 
 fn_write_uex_Preference () {
 	local domain="$1"
 	local key="$2"
-	defaults write github.cubandave.uex.plist "$domain" "$key" 2> /dev/null
+	defaults write github.cubandave.uex.api.plist "$domain" "$key" 2> /dev/null
 }
 
 fn_read_uex_Preference () {
 	local domain="$1"
-	defaults read github.cubandave.uex.plist "$domain" 2> /dev/null
+	defaults read github.cubandave.uex.api.plist "$domain" 2> /dev/null
 }
 
 fn_delete_JamfUEXGETfolder () {
@@ -30,19 +30,237 @@ fn_delete_JamfUEXGETfolder () {
 UEXhelpticketTrigger="add_to_group_for_disk_space_help_ticket"
 ClearHelpTicketRequirementTrigger="remove_from_group_for_disk_space_help_ticket"
 
-AylaMethodDefault="$(fn_read_uex_Preference "AylaMethod")"
-AylaMethodDefault="${AylaMethodDefault:-n}"
-printf "Do you use jamf cloud or have been having problems with the API tool? ('y' or 'n') [Press 'return' for default: %s ]:\n" "$AylaMethodDefault"
-read -r AylaMethodAnswer
-if [ "$AylaMethodAnswer" != "${AylaMethodAnswer#[Yy]}" ] ;then
-    AylaMethod=y
-elif [ "$AylaMethodAnswer" != "${AylaMethodAnswer#[Nn]}" ];then
-    AylaMethod=n
-elif [[ -z "$AylaMethodAnswer" ]]; then
-	#statements
-	AylaMethod="$AylaMethodDefault"
+##########################################################################################
+##									Icon Magic  										##
+##########################################################################################
+
+fn_check4DarkMode (){
+
+	local DarkModeCheck
+	DarkModeCheck=$(defaults read -g AppleInterfaceStyle 2> /dev/null)
+
+	if [[ -n "$DarkModeCheck" ]]; then
+		echo Dark
+	else
+		echo Light
+	fi
+
+}
+
+dir=$( unset CDPATH && cd "$(dirname "$0")" && echo "$PWD" )
+
+imagesDIR="${dir//API Configuration Tool/images}"
+
+UexLightIcon="$imagesDIR/uex_logo_pride_black.png"
+UexDarkIcon="$imagesDIR/uex_logo_pride_white.png"
+
+if [[ "$(fn_check4DarkMode)" == Dark ]];then
+	UexIcon="$UexDarkIcon"
 else
-	echo "Setting is not set to y or n" ; exit 1
+	UexIcon="$UexLightIcon"
+fi
+
+
+if [[ -f "$UexIcon" ]]; then
+	standardIcon="$UexIcon"
+else
+	standardIcon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
+fi
+
+title="UEX - Jamf Pro Configuration Tool"
+
+##########################################################################################
+##								Start of Configuration 									##
+##########################################################################################
+##########################################################################################
+##							DO NOT MAKE ANY CHANGES BELOW								##
+##########################################################################################
+
+
+##########################################################################################
+##										Functions										##
+##########################################################################################
+
+
+fn_getAPICredentials	() {
+	DefaultJssUser="$(fn_read_uex_Preference "DefaultJssUser")"
+	DefaultJssUser="${DefaultJssUser:-jssadmin}"
+	
+	fn_genericDialogCocoaDialogStyleAnswer "$title" "Please enter your the User Name for the jamf admin account:" "" "$DefaultJssUser" "Cancel" "OK" "" "$standardIcon"
+	jss_user="$myTempResult"
+
+	if [[ "$jss_user" != "$DefaultJssUser" ]]; then
+		#statements
+		fn_Check2SaveDefault "DefaultJssUser" "$DefaultJssUser" "$jss_user"
+	fi
+
+	jss_passMessage="Please enter your current password for the account: (default: jamf1234)"
+	fn_genericDialogCocoaDialogStyleHiddenAnswer "$title" "$jss_passMessage" "" "jamf1234" "Cancel" "OK" "" "$standardIcon"
+	jss_pass="$myTempResult"
+
+
+	DefaultJssURL="$(fn_read_uex_Preference "DefaultJssURL")"
+	DefaultJssURL="${DefaultJssURL:-https://cubandave.local:8443}"
+	fn_genericDialogCocoaDialogStyleAnswer "$title" "Please enter the URL for your Jamf Pro Server:" "" "$DefaultJssURL" "Cancel" "OK" "" "$standardIcon"
+	jss_url="$myTempResult"
+
+	## strip trailing slash
+	if [[ "$jss_url" == *"/" ]]; then
+		jss_url=$(/bin/echo "$jss_url" | /usr/bin/sed -e "s/.$//g" )
+
+	fi
+	jss_url="${jss_url// /:}" 
+
+	if [[ "$jss_url" != "$DefaultJssURL" ]]; then
+		#statements
+		fn_Check2SaveDefault "DefaultJssURL" "$DefaultJssURL" "$jss_url"
+	fi
+
+
+}
+
+fn_Check2SaveDefault () {
+	local domain="$1"
+	local previous="$2"
+	local new="$3"
+
+	local Check2SaveMessage
+	Check2SaveMessage="Do you want to save this as a new default $domain for next time?
+New Setting: 
+${new}
+Previous Default: 
+${previous}"
+
+	fn_genericDialogCocoaDialogStyle3Buttons "$title" "$Check2SaveMessage" "" "Cancel" "No" "Save" "" "$standardIcon"
+	Check2SaveButton="$myTempResult"
+
+	if [[ "$Check2SaveButton" == "Save" ]] ; then
+		fn_write_uex_Preference "$domain" "$new"
+	fi
+
+}
+
+fn_genericDialogCocoaDialogStyle3Buttons() 
+{
+    myTempResult=""
+    myTempResult=$(osascript <<OSA
+        try
+        display dialog "$(printf '%s\n' "$2")" with title "$(printf '%s' "$1")" buttons {"$(printf '%s' "$4")", "$(printf '%s' "$5")", "$(printf '%s' "$6")"} with icon POSIX file "$(printf '%s' "$8")" default button 3
+
+        on error number -128
+			set myTempResult to "result:Cancel" as text
+		end try
+
+OSA
+)
+	if [[ "$myTempResult" == "result:Cancel" ]] ; then /bin/echo "User cancelled" ; fn_cleanExit 1 ; fi
+	myTempResult="$(echo "$myTempResult" | awk -F':' '{ print $2 }')"
+}
+
+# fn_genericDialogCocoaDialogStyleAnswer "This is a title" "This is the text" "" "default answer" "Not OK" "OK" "" "caution")
+fn_genericDialogCocoaDialogStyleAnswer () 
+{
+    myTempResult=""
+    myTempResult=$(osascript <<OSA
+        try
+        display dialog "$(printf '%s\n' "$2")" with title "$(printf '%s' "$1")" default answer "$(printf '%s' "$4")" buttons {"$(printf '%s' "$5")", "$(printf '%s' "$6")"} with icon POSIX file "$(printf '%s' "$8")" default button 2
+
+        on error number -128
+			set myTempResult to "result:Cancel" as text
+		end try
+OSA
+)
+	if [[ "$myTempResult" == "result:Cancel" ]] ; then /bin/echo User cancelled ; fn_cleanExit 1 ; fi
+	myTempResult="$(echo "$myTempResult" | awk -F':' '{ $1=""; $2=""; print}' | cut -c 3- )"
+}
+
+# fn_genericDialogCocoaDialogStyleAnswer "This is a title" "This is the text" "" "default answer" "Not OK" "OK" "" "caution")
+fn_genericDialogCocoaDialogStyleHiddenAnswer () 
+{
+    myTempResult=""
+    myTempResult=$(osascript <<OSA
+        try
+        display dialog "$(printf '%s\n' "$2")" with title "$(printf '%s' "$1")" with hidden answer default answer "$(printf '%s' "$4")" buttons {"$(printf '%s' "$5")", "$(printf '%s' "$6")"} with icon POSIX file "$(printf '%s' "$8")" default button 2
+
+        on error number -128
+			set myTempResult to "result:Cancel" as text
+		end try
+OSA
+)
+	if [[ "$myTempResult" == "result:Cancel" ]] ; then /bin/echo User cancelled ; fn_cleanExit 1 ; fi
+	myTempResult="$(echo "$myTempResult" | awk -F':' '{ $1=""; $2=""; print}' | cut -c 3- )"
+}
+
+fn_cleanExit (){
+	##echo Error
+	if [[ "$2" ]] ; then /bin/echo "$2" ; fi 
+	exit "$1"
+
+}
+
+fn_genericDialogCocoaDialogStyle3ButtonsWithDefaultButton() 
+{
+    myTempResult=""
+    myTempResult=$(osascript <<OSA
+        try
+        display dialog "$(printf '%s\n' "$2")" with title "$(printf '%s' "$1")" buttons {"$(printf '%s' "$4")", "$(printf '%s' "$5")", "$(printf '%s' "$6")"} with icon POSIX file "$(printf '%s' "$8")" default button "$(printf '%s' "$9")"
+
+        on error number -128
+			set myTempResult to "result:Cancel" as text
+		end try
+
+OSA
+)
+	if [[ "$myTempResult" == "result:Cancel" ]] ; then /bin/echo "User cancelled" ; fn_cleanExit 1 ; fi
+	myTempResult="$(echo "$myTempResult" | awk -F':' '{ print $2 }')"
+}
+
+# fn_genericDialogCocoaDialogStyleError "This is the text" "$standardIcon" "exitCode"
+fn_genericDialogCocoaDialogStyleError() {
+   
+    myTempResult=""
+    myTempResult=$(osascript <<OSA
+        display dialog "$(printf '%s\n' "$1")" with title "$(printf '%s' "$title")" buttons {"OK"} with icon POSIX file "$(printf '%s' "$2")" default button 1
+
+OSA
+)
+	fn_cleanExit "$3"
+}
+
+
+# fn_genericDialogCocoaDialogStyleMessage "This is the text" "$standardIcon"
+fn_genericDialogCocoaDialogStyleMessage() {
+   
+    myTempResult=""
+    myTempResult=$(osascript <<OSA
+        display dialog "$(printf '%s\n' "$1")" with title "$(printf '%s' "$title")" buttons {"OK"} with icon POSIX file "$(printf '%s' "$2")" default button 1
+
+OSA
+)
+}
+
+##########################################################################################
+#		 							Data Gathering!										 #
+##########################################################################################
+
+AylaMethodDefault="$(fn_read_uex_Preference "JamfCloud")"
+AylaMethodDefault="${AylaMethodDefault:-Yes}"
+
+AylaMethodMessage="Do you use jamf cloud or have been having problems with the API tool?"
+fn_genericDialogCocoaDialogStyle3ButtonsWithDefaultButton "$title" "$AylaMethodMessage" "" "Cancel" "No" "Yes" "" "$standardIcon" "$AylaMethodDefault"
+AylaMethodAnswer="$myTempResult"
+
+
+if [[ "$AylaMethodAnswer" != "$AylaMethodDefault" ]]; then
+	#statements
+	fn_Check2SaveDefault "JamfCloud" "$AylaMethodDefault" "$AylaMethodAnswer"
+fi
+
+
+if [ "$AylaMethodAnswer" == "Yes" ] ;then
+    AylaMethod=y
+elif [ "$AylaMethodAnswer" == "No" ];then
+    AylaMethod=n
 fi
 
 if [[ "$AylaMethod" == "y" ]] ; then 
@@ -50,27 +268,22 @@ if [[ "$AylaMethod" == "y" ]] ; then
 	if [[ ! -d "$AylaMethodFolder" ]] ;then
 		mkdir "$AylaMethodFolder"
 	fi
-	printf "This will write all the XMLs from the GET Commands to %s \n" "$AylaMethodFolder"
-	printf "THEN it will delete the folder when done\n"
+
+	AylaMethodNotification="This will write all the XMLs from the GET Commands to 
+$AylaMethodFolder
+Then it will delete the folder when done"
+	fn_genericDialogCocoaDialogStyleMessage "$AylaMethodNotification" "$standardIcon"
+
 fi
 
-if [[ "$AylaMethodDefault" != "$AylaMethod" ]] ; then
-	printf "Would you like to make this the new default? (y or n) [Press return for default: no ]:\n"
-	read -r saveAylaMethodDefault
-	if [[ "$saveAylaMethodDefault" != "${saveAylaMethodDefault#[Yy]}" ]] ; then fn_write_uex_Preference "AylaMethod" "$AylaMethod" ; fi
-fi
+DebugMessage="Do you want to enable debug mode?"
+fn_genericDialogCocoaDialogStyle3Buttons "$title" "$DebugMessage" "" "Cancel" "Yes" "No" "" "$standardIcon"
+debugAnswer="$myTempResult"
 
-printf "Do you want to enable debug mode? ('y' or 'n') [Press 'return' for default: n ]:\n"
-read -r debugAnswer
-if [ "$debugAnswer" != "${debugAnswer#[Yy]}" ] ;then
+if [ "$debugAnswer" == "Yes" ] ;then
     debug=true
-elif [ "$debugAnswer" != "${debugAnswer#[Nn]}" ];then
+elif [ "$debugAnswer" != "No" ];then
     debug=false
-elif [[ -z "$debugAnswer" ]]; then
-	#statements
-	debug=false
-else
-	echo "Setting is not set to y or n" ; exit 1
 fi
 
 if [[ "$debug" == true ]] ; then 
@@ -81,145 +294,117 @@ else
 	curlOptions="-s --show-error"
 fi
 
-jss_urlDefault="$(fn_read_uex_Preference "jss_url")"
-jss_urlDefault="${jss_urlDefault:-https://cubandave.local:8443}"
-printf "Enter your jss_url [Press return for default: %s ]:\n" "$jss_urlDefault"
-read -r jss_url
-jss_url="${jss_url:-$jss_urlDefault}"
+fn_getAPICredentials
 
-if [[ "$jss_urlDefault" != "$jss_url" ]] ; then
-	printf "Would you like to make this the new default? (y or n) [Press return for default: no ]:\n"
-	read -r savejss_urlDefault
-	if [[ "$savejss_urlDefault" != "${savejss_urlDefault#[Yy]}" ]] ; then fn_write_uex_Preference "jss_url" "$jss_url" ; fi
-fi
-
-jss_userDefault="$(fn_read_uex_Preference "jss_user")"
-jss_userDefault="${jss_userDefault:-jssadmin}"
-printf "Enter an admin user name for your Jamf Server [Press return for default: %s ]:\n" "$jss_userDefault"
-read -r jss_user
-jss_user="${jss_user:-$jss_userDefault}"
-
-if [[ "$jss_userDefault" != "$jss_user" ]] ; then
-	printf "Would you like to make this the new default? (y or n) [Press return for default: %s ]:\n" "$jss_userDefault"
-	read -r savejss_userDefault
-	if [[ "$savejss_userDefault" != "${savejss_userDefault#[Yy]}" ]] ; then fn_write_uex_Preference "jss_user" "$jss_user" ; fi
-fi
-
-printf "Enter the password for the user [Press return for default: jamf1234]:\n"
-read -s -r jss_pass
-jss_pass="${jss_pass:-jamf1234}"
-
-
-# jss_url="https://cubandave.local:8443"
-# jss_user="jssadmin"
-# jss_pass="jamf1234"
 
 # Set the category you'd like to use for all the policies
-UEXCategoryNameDefault="$(fn_read_uex_Preference "UEXCategoryName")"
+
+UEXCategoryNameDefault="$(fn_read_uex_Preference "UEXCategoryNameDefault")"
 UEXCategoryNameDefault="${UEXCategoryNameDefault:-User Experience}"
-printf "Enter the name of the category you want to use [Press return for default: %s ]:\n" "$UEXCategoryNameDefault"
-read -r UEXCategoryName
-UEXCategoryName="${UEXCategoryName:-$UEXCategoryNameDefault}"
 
-if [[ "$UEXCategoryNameDefault" != "$UEXCategoryName" ]] ; then
-	printf "Would you like to make this the new default? (y or n) [Press return for default: no ]:\n"
-	read -r saveUEXCategoryNameDefault
-	if [[ "$saveUEXCategoryNameDefault" != "${saveUEXCategoryNameDefault#[Yy]}" ]] ; then fn_write_uex_Preference "UEXCategoryName" "$UEXCategoryName" ; fi
+fn_genericDialogCocoaDialogStyleAnswer "$title" "Enter the name of the category you want to use" "" "$UEXCategoryNameDefault" "Cancel" "OK" "" "$standardIcon"
+UEXCategoryName="$myTempResult"
+
+if [[ "$UEXCategoryName" != "$UEXCategoryNameDefault" ]]; then
+	#statements
+	fn_Check2SaveDefault "UEXCategoryNameDefault" "$UEXCategoryNameDefault" "$UEXCategoryName"
 fi
 
-packagesDefault="$(fn_read_uex_Preference "packages")"
-printf "Enter the package name for the UEX resources [Press return for default: %s ]:\n" "$packagesDefault"
-read -r packages
-packages="${packages:-$packagesDefault}"
 
-if [[ -z "$packages" ]] ; then echo "No Package Specified" ; exit 1 ; fi
 
-if [[ "$packagesDefault" != "$packages" ]] ; then
-	printf "Would you like to make this the new default? (y or n) [Press return for default: no ]:\n"
-	read -r savepackagesDefault
-	if [[ "$savepackagesDefault" != "${savepackagesDefault#[Yy]}" ]] ; then fn_write_uex_Preference "packages" "$packages" ; fi
+packagesDefault="$(fn_read_uex_Preference "packagesDefault")"
+packagesDefault="${packagesDefault:-UEXresourcesInstaller-201903130155.pkg}"
+
+fn_genericDialogCocoaDialogStyleAnswer "$title" "Enter the package name for the UEX resources." "" "$packagesDefault" "Cancel" "OK" "" "$standardIcon"
+packages="$myTempResult"
+
+if [[ "$packages" != "$packagesDefault" ]]; then
+	#statements
+	fn_Check2SaveDefault "packagesDefault" "$packagesDefault" "$packages"
 fi
+
 ## Keeping here to make testing easier
 # packages=(
 # "UEXresourcesInstaller-201903130155.pkg"
 # )
 
 # This enables the interaction for Help Disk Tickets
-# by default it is disabled. For more info on how to use this check the wiki in the Help Desk Ticket Section
+# By default it is disabled. For more info on how to use this check the wiki in the Help Desk Ticket Section
 
 helpTicketsEnabledViaAppRestrictionDefault="$(fn_read_uex_Preference "helpTicketsEnabledViaAppRestriction")"
-helpTicketsEnabledViaAppRestrictionDefault="${helpTicketsEnabledViaAppRestrictionDefault:-false}"
-printf "Do you want to use the Restricted Software feature to be notfied to create Helpdesk tickets? ('y' or 'n') [Press 'return' for default: %s ]:\n" "$helpTicketsEnabledViaAppRestrictionDefault"
-read -r helpTicketsEnabledViaAppRestrictionAnswer
+helpTicketsEnabledViaAppRestrictionDefault="${helpTicketsEnabledViaAppRestrictionDefault:-No}"
 
-if [ "$helpTicketsEnabledViaAppRestrictionAnswer" != "${helpTicketsEnabledViaAppRestrictionAnswer#[Yy]}" ] ;then
-    helpTicketsEnabledViaAppRestriction=true
-elif [ "$helpTicketsEnabledViaAppRestrictionAnswer" != "${helpTicketsEnabledViaAppRestrictionAnswer#[Nn]}" ];then
-    helpTicketsEnabledViaAppRestriction=false
-elif [[ -z "$helpTicketsEnabledViaAppRestrictionAnswer" ]]; then
+helpTicketsEnabledViaAppRestrictionMessage="Do you want to use the Restricted Software feature to be notfied to create Helpdesk tickets?"
+fn_genericDialogCocoaDialogStyle3ButtonsWithDefaultButton "$title" "$helpTicketsEnabledViaAppRestrictionMessage" "" "Cancel" "No" "Yes" "" "$standardIcon" "$helpTicketsEnabledViaAppRestrictionDefault"
+helpTicketsEnabledViaAppRestrictionAnswer="$myTempResult"
+
+
+if [[ "$helpTicketsEnabledViaAppRestrictionAnswer" != "$helpTicketsEnabledViaAppRestrictionDefault" ]]; then
 	#statements
-	helpTicketsEnabledViaAppRestriction="$helpTicketsEnabledViaAppRestrictionDefault"
-else
-	echo "Setting is not set to y or n" ; exit 1
+	fn_Check2SaveDefault "helpTicketsEnabledViaAppRestriction" "$helpTicketsEnabledViaAppRestrictionDefault" "$helpTicketsEnabledViaAppRestrictionAnswer"
 fi
 
-if [[ "$helpTicketsEnabledViaAppRestrictionDefault" != "$helpTicketsEnabledViaAppRestriction" ]] ; then
-	printf "Would you like to make this the new default? (y or n) [Press return for default: no ]:\n"
-	read -r savehelpTicketsEnabledViaAppRestrictionDefault
-	if [[ "$savehelpTicketsEnabledViaAppRestrictionDefault" != "${savehelpTicketsEnabledViaAppRestrictionDefault#[Yy]}" ]] ; then fn_write_uex_Preference "helpTicketsEnabledViaAppRestriction" "$helpTicketsEnabledViaAppRestriction" ; fi
+if [ "$helpTicketsEnabledViaAppRestrictionAnswer" == "Yes" ] ;then
+    helpTicketsEnabledViaAppRestriction=true
+elif [ "$helpTicketsEnabledViaAppRestrictionAnswer" != "No" ];then
+    helpTicketsEnabledViaAppRestriction=false
 fi
 
 
 if [[ "$helpTicketsEnabledViaAppRestriction" == true ]] ;then
 	
-restrictedAppNameDefault="$(fn_read_uex_Preference "restrictedAppName")"
-restrictedAppNameDefault="${restrictedAppNameDefault:-User Needs Helps Clearing Space.app}"
-	printf "What is the name of the app triggering Restricted Software? [Press return for default: %s ]:\n" "$restrictedAppNameDefault"
-	read -r restrictedAppName
-	restrictedAppName="${restrictedAppName:-$restrictedAppNameDefault}"
-	if [[ "$restrictedAppNameDefault" != "$restrictedAppName" ]] ; then
-		printf "Would you like to make this the new default? (y or n) [Press return for default: no ]:\n"
-		read -r saverestrictedAppNameDefault
-		if [[ "$saverestrictedAppNameDefault" != "${saverestrictedAppNameDefault#[Yy]}" ]] ; then fn_write_uex_Preference "restrictedAppName" "$restrictedAppName" ; fi
+	restrictedAppNameDefault="$(fn_read_uex_Preference "restrictedAppNameDefault")"
+	restrictedAppNameDefault="${restrictedAppNameDefault:-User Needs Helps Clearing Space.app}"
+
+	fn_genericDialogCocoaDialogStyleAnswer "$title" "Enter the name of the App for the app restriction." "" "$restrictedAppNameDefault" "Cancel" "OK" "" "$standardIcon"
+	restrictedAppName="$myTempResult"
+
+	if [[ "$restrictedAppName" != "$restrictedAppNameDefault" ]]; then
+		#statements
+		fn_Check2SaveDefault "restrictedAppNameDefault" "$restrictedAppNameDefault" "$restrictedAppName"
 	fi
 fi
 
-helpTicketsEnabledViaGeneralStaticGroupDefault="$(fn_read_uex_Preference "helpTicketsEnabledViaGeneralStaticGroup")"
-helpTicketsEnabledViaGeneralStaticGroupDefault="${helpTicketsEnabledViaGeneralStaticGroupDefault:-false}"
-printf "Do you want to use a general static group to be notified to create Helpdesk tickets? ('y' or 'n') [Press 'return' for default: %s ]:\n" "$helpTicketsEnabledViaGeneralStaticGroupDefault"
-read -r helpTicketsEnabledViaGeneralStaticGroupAnswer
-if [ "$helpTicketsEnabledViaGeneralStaticGroupAnswer" != "${helpTicketsEnabledViaGeneralStaticGroupAnswer#[Yy]}" ] ;then
-    helpTicketsEnabledViaGeneralStaticGroup=true
-elif [ "$helpTicketsEnabledViaGeneralStaticGroupAnswer" != "${helpTicketsEnabledViaGeneralStaticGroupAnswer#[Nn]}" ];then
-    helpTicketsEnabledViaGeneralStaticGroup=false
-elif [[ -z "$helpTicketsEnabledViaGeneralStaticGroupAnswer" ]]; then
+
+helpTicketsEnabledViaGeneralStaticGroupDefault="$(fn_read_uex_Preference "helpTicketsEnabledViaAppRestriction")"
+helpTicketsEnabledViaGeneralStaticGroupDefault="${helpTicketsEnabledViaGeneralStaticGroupDefault:-No}"
+
+helpTicketsEnabledViaGeneralStaticGroupMessage="Do you want to use a general static group to be notified to create Helpdesk tickets?"
+fn_genericDialogCocoaDialogStyle3ButtonsWithDefaultButton "$title" "$helpTicketsEnabledViaGeneralStaticGroupMessage" "" "Cancel" "No" "Yes" "" "$standardIcon" "$helpTicketsEnabledViaGeneralStaticGroupDefault"
+helpTicketsEnabledViaGeneralStaticGroupAnswer="$myTempResult"
+
+
+if [[ "$helpTicketsEnabledViaGeneralStaticGroupAnswer" != "$helpTicketsEnabledViaGeneralStaticGroupDefault" ]]; then
 	#statements
-	helpTicketsEnabledViaGeneralStaticGroup="$helpTicketsEnabledViaGeneralStaticGroupDefault"
-else
-	echo "Setting is not set to y or n" ; exit 1
+	fn_Check2SaveDefault "helpTicketsEnabledViaAppRestriction" "$helpTicketsEnabledViaGeneralStaticGroupDefault" "$helpTicketsEnabledViaGeneralStaticGroupAnswer"
 fi
 
-helpTicketsEnabledViaGeneralStaticGroup=${helpTicketsEnabledViaGeneralStaticGroup:-"$helpTicketsEnabledViaGeneralStaticGroupDefault"}
-if [[ "$helpTicketsEnabledViaGeneralStaticGroup" != true ]] && [[ "$helpTicketsEnabledViaGeneralStaticGroup" != false ]] ; then echo "helpTicketsEnabledViaGeneralStaticGroup is not set to true or false" ; exit 1 ; fi
+if [ "$helpTicketsEnabledViaAppRestrictionAnswer" == "Yes" ] ;then
+    helpTicketsEnabledViaAppRestriction=true
+elif [ "$helpTicketsEnabledViaAppRestrictionAnswer" != "No" ];then
+    helpTicketsEnabledViaAppRestriction=false
+fi
 
-if [[ "$helpTicketsEnabledViaGeneralStaticGroupDefault" != "$helpTicketsEnabledViaGeneralStaticGroup" ]] ; then
-	printf "Would you like to make this the new default? (y or n) [Press return for default: no ]:\n"
-	read -r savehelpTicketsEnabledViaGeneralStaticGroupDefault
-	if [[ "$savehelpTicketsEnabledViaGeneralStaticGroupDefault" != "${savehelpTicketsEnabledViaGeneralStaticGroupDefault#[Yy]}" ]] ; then fn_write_uex_Preference "helpTicketsEnabledViaGeneralStaticGroup" "$helpTicketsEnabledViaGeneralStaticGroup" ; fi
+
+if [ "$helpTicketsEnabledViaGeneralStaticGroupAnswer" == "Yes" ] ;then
+    helpTicketsEnabledViaGeneralStaticGroup=true
+elif [ "$helpTicketsEnabledViaGeneralStaticGroupAnswer" == "No" ];then
+    helpTicketsEnabledViaGeneralStaticGroup=false
 fi
 
 if [[ "$helpTicketsEnabledViaGeneralStaticGroup" == true ]] ;then
 	
-	staticGroupNameDefault="$(fn_read_uex_Preference "staticGroupName")"
+	staticGroupNameDefault="$(fn_read_uex_Preference "staticGroupNameDefault")"
 	staticGroupNameDefault="${staticGroupNameDefault:-User Needs Helps Clearing Space}"
-	printf "What is the name of the Static Group computers will go into? [Press return for default: %s ]:\n" "$staticGroupNameDefault"
-	read -r staticGroupName
-	staticGroupName="${staticGroupName:-$staticGroupNameDefault}"
-	if [[ "$staticGroupNameDefault" != "$staticGroupName" ]] ; then
-		printf "Would you like to make this the new default? (y or n) [Press return for default: no ]:\n"
-		read -r savestaticGroupNameDefault
-		if [[ "$savestaticGroupNameDefault" != "${savestaticGroupNameDefault#[Yy]}" ]] ; then fn_write_uex_Preference "staticGroupName" "$staticGroupName" ; fi
+
+	fn_genericDialogCocoaDialogStyleAnswer "$title" "Enter the tag for the Static Group." "" "$staticGroupNameDefault" "Cancel" "OK" "" "$standardIcon"
+	staticGroupName="$myTempResult"
+
+	if [[ "$staticGroupName" != "$staticGroupNameDefault" ]]; then
+		#statements
+		fn_Check2SaveDefault "staticGroupNameDefault" "$staticGroupNameDefault" "$staticGroupName"
 	fi
+
 fi
 
 
@@ -227,9 +412,6 @@ fi
 # helpTicketsEnabledViaGeneralStaticGroup=false
 # restrictedAppName="User Needs Helps Clearing Space.app"
 # staticGroupName="User Needs Help Clearing Disk Space"
-
-
-
 
 
 ##########################################################################################
@@ -273,16 +455,15 @@ UEXInteractionScripts=(
 
 
 ##########################################################################################
-# 										Functions										 #
+# 									API Functions										 #
 ##########################################################################################
 
 
 FNputXML () 
 	{
-# shellcheck disable=SC2086
-		# echo /usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1/id/$2" -u "${jss_user}:${jss_pass}" -H \"Content-Type: text/xml\" -X PUT -d "$3"
+
 		local result
-# shellcheck disable=SC2086
+		# shellcheck disable=SC2086
 		result=$(/usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/$1/id/$2" -u "${jss_user}:${jss_pass}" -H "Content-Type: text/xml" -X PUT -d "$3")
 		# updated to account for #86
 		if [[ "$result" == *"<html>"* ]]; then
@@ -377,7 +558,7 @@ FNtestXML ()
 		# echo ""
 	# else
 		echo "ERROR $1 \"$2\" does not exist" 
-		exit 1
+		fn_genericDialogCocoaDialogStyleError "ERROR $1 \"$2\" does not exist" "$standardIcon" "1"
 	fi
 	}
 
@@ -688,14 +869,14 @@ restrictedsoftwareXML="<restricted_software>
   </scope>
 </restricted_software>"
 
-	FNput_postXML restrictedsoftware "$staticGroupName" "$restrictedsoftwareXML"
+	FNput_postXML restrictedsoftware "$restrictedAppName" "$restrictedsoftwareXML"
 
 
 }
 
 fn_create_staticGroup_for_Disk_Space () {
 	StaticGroupXMLForDiskSpace="<computer_group>
-  <name>$staticGroupName</name>
+  <name>UEX - $staticGroupName</name>
   <is_smart>false</is_smart>
   <site>
     <id>-1</id>
@@ -703,12 +884,12 @@ fn_create_staticGroup_for_Disk_Space () {
   </site>
 </computer_group>"
 
-	FNput_postXML "computergroups" "$staticGroupName" "$StaticGroupXMLForDiskSpace"
+	FNput_postXML "computergroups" "UEX - $staticGroupName" "$StaticGroupXMLForDiskSpace"
 }
 
 fn_create_MonititoringSmartGroup_for_Disk_Space () {
 	SmartGroupXMLForDiskSpace="<computer_group>
-  <name>Monitoring - UEX - $staticGroupName</name>
+  <name>Monitoring - UEX - Group:$staticGroupName</name>
   <is_smart>true</is_smart>
   <site>
     <id>-1</id>
@@ -721,14 +902,14 @@ fn_create_MonititoringSmartGroup_for_Disk_Space () {
       <priority>0</priority>
       <and_or>and</and_or>
       <search_type>member of</search_type>
-      <value>$staticGroupName</value>
+      <value>UEX - $staticGroupName</value>
       <opening_paren>false</opening_paren>
       <closing_paren>false</closing_paren>
     </criterion>
   </criteria>
 </computer_group>"
 
-	FNput_postXML "computergroups" "Monitoring - UEX - $staticGroupName" "$SmartGroupXMLForDiskSpace"
+	FNput_postXML "computergroups" "Monitoring - UEX - Group:$staticGroupName" "$SmartGroupXMLForDiskSpace"
 }
 
 fn_openMonitoringSmartGroup () {
@@ -745,7 +926,7 @@ fn_openAPIPolicies () {
 }
 
 ##########################################################################################
-# 								Script Starts Here										 #
+# 								API MAGIC Starts Here									 #
 ##########################################################################################
 # create category
 	FNcreateCategory "$UEXCategoryName"
@@ -754,9 +935,10 @@ fn_openAPIPolicies () {
 
 if [[ "$helpTicketsEnabledViaAppRestriction" = true ]] || [[ "$helpTicketsEnabledViaGeneralStaticGroup" = true ]] ;then
 	if [[ $(fn_checkForSMTPServer) -eq 0 ]] ; then
-		echo "no SMTP server configured." 
-		echo "Please check your Jamf Pro server or disbale helpTicketsEnabledViaAppRestriction or helpTicketsEnabledViaGeneralStaticGroup"
-		exit 1
+		SMTPNotification="No SMTP server configured. 
+Please check your Jamf Pro server or disbale helpTicketsEnabledViaAppRestriction or helpTicketsEnabledViaGeneralStaticGroup"
+		fn_genericDialogCocoaDialogStyleError "$SMTPNotification" "$standardIcon" "1"
+		
 	fi
 fi
 
@@ -785,8 +967,10 @@ fi
 	for script in "${scripts[@]}" ; do 
 		FNgetID "scripts" "$script" 
 		if [ -z "$retreivedID" ] ; then
-			echo ERROR: Script "$script" not found on jamf server "$jss_url"
-			exit 1
+
+			ScriptNotification="ERROR: Script \"$script\" not found on jamf server $jss_url"
+			fn_genericDialogCocoaDialogStyleError "$ScriptNotification" "$standardIcon" "1"
+
 		else
 			echo "updating category on \"$script\" to \"$UEXCategoryName\""
 			fn_updateCategory "$retreivedID" "script" "$UEXCategoryName" "scripts"
@@ -796,8 +980,10 @@ fi
 	for package in "${packages[@]}" ; do 
 		FNgetID "packages" "$package" 
 		if [ -z "$retreivedID" ] ; then
-			echo ERROR: Package "$package" not found on jamf server "$jss_url"
-			exit 1
+
+			PackageError="ERROR: Package $package not found on jamf server $jss_url"
+			fn_genericDialogCocoaDialogStyleError "$PackageError" "$standardIcon" "1"
+
 		else
 			echo "updating category on \"$package\" to \"$UEXCategoryName\""
 			fn_updateCategory "$retreivedID" "package" "$UEXCategoryName" "packages"
@@ -836,8 +1022,9 @@ fi
 	extAttrName="UEX - Deferral Detection"
 	FNgetID computerextensionattributes "$extAttrName"
 	if [ -z "$retreivedID" ] ;then
-		echo ERROR: Exentsion Attribute "$extAttrName" not found on jamf server "$jss_url"
-		exit 1
+		EAError="ERROR: Exentsion Attribute $extAttrName not found on jamf server $jss_url"
+		fn_genericDialogCocoaDialogStyleError "$EAError" "$standardIcon" "1"
+
 	fi
 
 # Create smart group
@@ -871,9 +1058,11 @@ fn_createTriggerPolicy "00-uexdeferralservice-jss - Checkin and Logout" "uexdefe
 fn_createTriggerPolicy4Pkg "00-uexresources-jss - Trigger" "${packages[0]}" "uexresources" "<all_computers>true</all_computers>"
 
 if [[ "$helpTicketsEnabledViaGeneralStaticGroup" = true ]]; then
-	echo "Now Opening the Monitoring Smart Group"
-	echo "Make sure the Notification Setting is on"
-	echo "Also opening API scripts. Make sure to add the JSS User and Password"
+	OpenNotification="Now Opening the Monitoring Smart Group
+Make sure the Notification Setting is on
+Also opening API scripts. Make sure to add the JSS User and Password"
+	fn_genericDialogCocoaDialogStyleMessage "$OpenNotification" "$standardIcon"
+
 	sleep 3
 	fn_openMonitoringSmartGroup
 	fn_openAPIPolicies
@@ -882,6 +1071,7 @@ fi
 
 fn_delete_JamfUEXGETfolder
 
+fn_genericDialogCocoaDialogStyleMessage "The world is now your burrito!🌯" "$standardIcon"
 echo "The world is now your burrito!"
 
 

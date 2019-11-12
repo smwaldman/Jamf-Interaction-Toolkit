@@ -73,6 +73,13 @@ switchBlocktoQuitAutomatically=fasle
 # If you do not UEX to respect Do Not Disturb Mode and treat it like a presetation then change this to false
 supportDoNotDisturb=true
 
+# msupdate needs to be changed to manual when checking for some odd reason
+# The setting below is what it will be set back to after the checking has been done
+# Set this to what ever setting you would like "https://goo.gl/UC04oZ"
+# Change how MAU interacts with updates. Note that AutomaticDownload will do a download and install silently if possible. 
+# Valid values are: Manual, AutomaticCheck, AutomaticDownload
+defaultMsauSetting="AutomaticDownload"
+
 
 ##########################################################################################
 ##						Create help Desk Ticket Via Function 							##
@@ -196,9 +203,9 @@ customMessage=${11}
 
 
 # for debugging
-# NameConsolidated="UEX;Sourcetree;1.0"
-# checks=$( echo "block" | tr '[:upper:]' '[:lower:]' )
-# apps="Sourcetree.app"
+# NameConsolidated="UEX;Microsoft Updates;1.0"
+# checks=$( echo "msupdate sfb debug compliance" | tr '[:upper:]' '[:lower:]' )
+# apps=""
 # installDuration=15
 # maxdeferConsolidated="3"
 # packages=""
@@ -1135,66 +1142,169 @@ fi
 msupdateBinary="/Library/Application Support/Microsoft/MAU2.0/Microsoft AutoUpdate.app/Contents/MacOS/msupdate"
 # autoUpdateLogFile="/Library/Logs/Microsoft/autoupdate.log"
 
+fn_setMSAUHowToCheck () {
+	local property="$1"
+	defaults write com.microsoft.autoupdate2 "HowToCheck" "$property" 
+}
+
 fn_check_4_msupdate () {
+	fn_setMSAUHowToCheck "Manual"
 	echo "" > "$msupdateLog"
 	echo "" > "$msupdateLogPlist"
 	sudo -u "$currentConsoleUserName" "$msupdateBinary" -l | /usr/bin/tee -a "$msupdateLog"
-	sudo -u "$currentConsoleUserName" "$msupdateBinary" -l -f p | /usr/bin/tee -a "$msupdateLogPlist"
+	# redect the output to that it's silent in the policy log
+	sudo -u "$currentConsoleUserName" "$msupdateBinary" -l -f p | /usr/bin/tee -a "$msupdateLogPlist" > /dev/null 2>&1
+
+	fn_setMSAUHowToCheck "$defaultMsauSetting"
+
 }
 
 
 fn_getMSupdatePackageURLs_and_names () {
-	IFS=$'\n'
-	##only download the delta update
-	msUPdatePackageURLS=( "$( grep -v "FullUpdaterLocation" "$msupdateLogPlist" |  grep -A 1 "Location" | /usr/bin/awk -F'<string>|</string>' '{print $2}')" )
-	unset IFS
-	# echo "msUPdatePackageURLS is: $msUPdatePackageURLS"
+
+	# msUPdatePackageURLS=()
+	IFS=''
+	while IFS='' read -r line; do 
+		msUPdatePackageURLS+=("$line")
+	done < <( grep -v "FullUpdaterLocation" "$msupdateLogPlist" |\
+			 grep -A 1 "Location" |\
+			  /usr/bin/awk -F'<string>|</string>' '{print $2}' |\
+			   sed '/^\s*$/d' )
+}
+
+fn_ProcessMsUpdateTargetApp () {
+	case "$checks" in
+		*"excel"* )
+		log4_JSS "UEX is set to check for and install updates only for MS Excel"
+		msUpdatePackageString="Excel"
+		msUpdateString="Excel"
+			;;
+		*"onenote"* )
+		log4_JSS "UEX is set to check for and install updates only for MS OneNote"
+		msUpdatePackageString="OneNote"
+		msUpdateString="OneNote"
+			;;
+		*"outlook"* )
+		log4_JSS "UEX is set to check for and install updates only for MS Outlook"
+		msUpdatePackageString="Outlook"
+		msUpdateString="Outlook"
+			;;
+		*"powerpoint"* )
+		log4_JSS "UEX is set to check for and install updates only for MS PowerPoint"
+		msUpdatePackageString="PowerPoint"
+		msUpdateString="PowerPoint"
+			;;
+		*"word"* )
+		log4_JSS "UEX is set to check for and install updates only for MS Word"
+		msUpdatePackageString="Word"
+		msUpdateString="Word"
+			;;
+		*"sfb"* )
+		log4_JSS "UEX is set to check for and install updates only for MS SkypeForBusines"
+		msUpdatePackageString="SkypeForBusines"
+		msUpdateString="Skype For Business"
+			;;
+
+		* ) 
+		msUpdatePackageString="xyz"
+		msUpdateString="xyz"
+
+			;;					
+	esac
+
+}
+
+fn_displayMesssageIfSelfService () {
+	local status="$1"
+		if [[ "$selfservicePackage" = true ]] ; then	
+		
+		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
+		sleep 5
+	fi # selfservice package
 }
 
 fn_downloadMSupdatePackages () {
+
 	packages=""
 	for msUpdatePackage in "${msUPdatePackageURLS[@]}" ; do
 		
 		# msUpdatePackageFileName=$( echo "$msUpdatePackage" | sed 's@.*/@@' )
-		msUpdatePackageFileName="$( basename "$msUpdatePackage" )"
+		msUpdatePackageFileName="$(basename "$msUpdatePackage" | sed '/^\s*$/d')"
 		# msUpdatePackageFileName="${msUpdatePackage##*/}"
 		# log4_JSS "msUpdatePackageFileName is: $msUpdatePackageFileName"
 
-
-		local MSupdateDownloadDestination
-		MSupdateDownloadDestination="$waitingRoomDIR""$msUpdatePackageFileName"
-		local tmpMSupdateDownloadDestination
-		tmpMSupdateDownloadDestination="/private/tmp/""$msUpdatePackageFileName"
-		# create the folder if it's not there
-		if [[ ! -d "waitingRoomDIR" ]] ; then 
-			mkdir -p "$waitingRoomDIR" 
-			chmod 700 "$waitingRoomDIR" 
+		downloadMSupdate=""
+		# Alway update AutoUpdate 
+		if [[ "$msUpdatePackageFileName" == *"AutoUpdate"* ]]; then
+			downloadMSupdate=true
+		elif [[ "$msUpdatePackageFileName" == *"$msUpdatePackageString"* ]]; then
+			downloadMSupdate=true
 		fi
 
-		# have it download to a 
-		if [[ ! -f "$MSupdateDownloadDestination" ]] ; then
+		if [[ "$downloadMSupdate" = true ]]; then
+			#statements
+			local MSupdateDownloadDestination
+			MSupdateDownloadDestination="$waitingRoomDIR""$msUpdatePackageFileName"
+			local tmpMSupdateDownloadDestination
+			tmpMSupdateDownloadDestination="/private/tmp/""$msUpdatePackageFileName"
+			# create the folder if it's not there
+			if [[ ! -d "waitingRoomDIR" ]] ; then 
+				mkdir -p "$waitingRoomDIR" 
+				chmod 700 "$waitingRoomDIR" 
+			fi
 
-			# delete the temp file just in case
-			if [[ -e "$tmpMSupdateDownloadDestination" ]] ; then rm "$tmpMSupdateDownloadDestination" ; fi
-			
-			# download to temp directory first
-			curl -o "$tmpMSupdateDownloadDestination" --silent --remote-name --location "$msUpdatePackage"
-			
-			# Move to waiting room when done
-			mv "$tmpMSupdateDownloadDestination" "$MSupdateDownloadDestination"
-		fi
+			# have it download to a 
+			if [[ ! -f "$MSupdateDownloadDestination" ]] ; then
 
-		# if the file exists then add it to the packages variable
-		if [[ -f "$MSupdateDownloadDestination" ]] ; then
-			# add the package name to the packages variable to use the native isntaller method
-			if [[ $packages == *".pkg" ]] ; then  packages+=";" ;  fi
-			packages+="$msUpdatePackageFileName"
-		else
-			log4_JSS "Downloading $msUpdatePackageFileName Failed"
-			# msUpdateDownloadFailed=true
+				# delete the temp file just in case
+				if [[ -e "$tmpMSupdateDownloadDestination" ]] ; then 
+					rm "$tmpMSupdateDownloadDestination"
+				fi
+				
+				log4_JSS "Downloading $msUpdatePackageFileName..."
+				# download to temp directory first
+				check4DownloadError=""
+				check4DownloadError=$(curl -o "$tmpMSupdateDownloadDestination" --show-error --silent --remote-name --location "$msUpdatePackage")
+				
+				# Move to waiting room when done
+				if [[ -n "$check4DownloadError" ]] ;then 
+					echo "$check4DownloadError"
+				else
+					# Install MS Auto AutoUpdate Right Away
+					msupdateAutoUpdatePKG=""
+					if [[ "$msUpdatePackageFileName" == *"AutoUpdate"* ]]; then
+						"$jamfBinary" install -package "$msUpdatePackageFileName" -path "/private/tmp" -target /
+						msupdateAutoUpdatePKG=true
+					else
+						mv "$tmpMSupdateDownloadDestination" "$MSupdateDownloadDestination"
+					fi
+				fi
+			fi
+
+			# if the file exists then add it to the packages variable
+			if [[ -f "$MSupdateDownloadDestination" ]] ; then
+				# add the package name to the packages variable to use the native isntaller method
+				if [[ $packages == *".pkg" ]] ; then  packages+=";" ;  fi
+				packages+="$msUpdatePackageFileName"
+			elif [[ "$msupdateAutoUpdatePKG" != true ]] ; then 
+				log4_JSS "Downloading $msUpdatePackageFileName Failed"
+				# msUpdateDownloadFailed=true
+			fi
+
 		fi
 
 	done
+
+	if [[ -z "$packages" ]] && [[ "$msupdateAutoUpdatePKG" != "true" ]]; then
+		log4_JSS "None of the target MS apps in the policy have updates."
+		msupdatesUpdatesList=""
+		msupdateUpdatesAvail=false
+		checks="quit msupdate"
+		apps="xayasdf.app;asdfasfd.app"
+		installDuration=1
+		
+		skipNotices="true"
+	fi
 }
 
 if [[ "$checks" == *"msupdate"* ]] ; then
@@ -1202,6 +1312,7 @@ if [[ "$checks" == *"msupdate"* ]] ; then
 fi
 
 if [[ "$msupdate" = true ]] ; then
+	checks+=" merp"
 	log4_JSS "UEX is Running Microsoft Updates"
 	msupdateLog="/private/tmp/msupdate.txt"
 	msupdateLogPlist="/private/tmp/msupdate.plist"
@@ -1211,91 +1322,82 @@ if [[ "$msupdate" = true ]] ; then
 	touch "$msupdateLogPlist"
 	
 
-	if [[ "$selfservicePackage" = true ]] ; then	
-		status="Microsoft Software Updates,
+	message="Microsoft Software Updates,
 checking for updates..."
-		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"	
-	fi # selfservice package
+	fn_displayMesssageIfSelfService "$message"
+
 	log4_JSS "Checking Microsoft Updates"
 	
 	fn_check_4_msupdate
 
-	fn_getMSupdatePackageURLs_and_names
+	fn_ProcessMsUpdateTargetApp
 
-	fn_downloadMSupdatePackages
-
-	msupdatesUpdatesList=$( cat "$msupdateLog" )
+	# check for auto update or the specfied string
+	msupdatesUpdatesList=$( grep "Updates available" "$msupdateLog" )
+	msupdatesUpdatesList+=$( grep "AutoUpdate" "$msupdateLog" )
+	msupdatesUpdatesList+=$( grep "$msUpdateString" "$msupdateLog" )
 
 	if [[ "$msupdatesUpdatesList" == *"Updates available:"* ]] || [[ "$debug" == true ]] ; then
 		msupdateUpdatesAvail=true
+
+		fn_getMSupdatePackageURLs_and_names
+
+		fn_downloadMSupdatePackages
 		
 	else
 		msupdateUpdatesAvail=false
 	# 	echo No new software available.
 	# 	echo No new software available no interacton required no notice to show
-		checks="quit"
+		checks="quit msupdate"
 		apps="xayasdf.app;asdfasfd.app"
 		installDuration=1
 		
 		skipNotices="true"
 		
-		if [[ "$selfservicePackage" = true ]] ; then	
-			status="Microsoft Updates,
+
+			message="Microsoft Updates,
 No updates available."
-			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
-			sleep 5
-		fi # selfservice package
+		fn_displayMesssageIfSelfService "$message"
+
+		sleep 5
 	fi
 
-	msUpdates2RunSilent=()
 	if [[ "$msupdateUpdatesAvail" = true ]] ; then
 		
 		# Do the AutoUpdate Updates First then re check for updates
 		if [[ "$msupdatesUpdatesList" == *"AutoUpdate"* ]] ; then
-			
-			#extract ID of update for msupdate
-			# AutoUpdateUpdateID=$( echo "$msupdatesUpdatesList" | grep AutoUpdate | awk '{ print $1 }' )
-			# sudo -u "$currentConsoleUserName" "$msupdateBinary" -i -a "$AutoUpdateUpdateID"
+				fn_check_4_msupdate
 
+				fn_ProcessMsUpdateTargetApp
 
-				msupdatesUpdatesList=$( cat $msupdateLog )
-
-				if [[ "$msupdatesUpdatesList" == *"Updates available:"* ]] || [[ "$debug" == true ]] ; then
-					msupdateUpdatesAvail=true
-				else
+				# check for auto update or the specfied string
+				msupdatesUpdatesList=$( grep "Updates available" "$msupdateLog" )
+				msupdatesUpdatesList+=$( grep "AutoUpdate" "$msupdateLog" )
+				msupdatesUpdatesList+=$( grep "$msUpdateString" "$msupdateLog" )
+				if [[ "$msupdatesUpdatesList" == *"AutoUpdate"* ]] ; then
+					log4_JSS "Microsoft AutoUpdate Failed to update."
 					msupdateUpdatesAvail=false
-				# 	echo No new software available.
-				# 	echo No new software available no interacton required no notice to show
-					checks="quit"
+					msupdatesUpdatesList=""
+
+					checks="quit msupdate"
 					apps="xayasdf.app;asdfasfd.app"
 					installDuration=1
 					
 					skipNotices="true"
-					
-					if [[ "$selfservicePackage" = true ]] ; then	
-						status="Microsoft Updates,
-No updates available."
-						"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
-						sleep 5
-					fi # selfservice package
+				fi
+
+				if [[ "$msupdatesUpdatesList" == *"Updates available:"* ]] || [[ "$debug" == true ]] ; then
+					msupdateUpdatesAvail=true
+
+					fn_getMSupdatePackageURLs_and_names
+
+					fn_downloadMSupdatePackages
 				fi
 		fi # contains AutoUpdate Update
-
-		# try to run now for all apps it queues them anyway
-		if [[ "$msupdatesUpdatesList" == *"Updates available:"* ]] ; then
-				msupdateUpdatesAvail=true
-				if [[ "$selfservicePackage" != true ]] ; then
-					sudo -u "$currentConsoleUserName" "$msupdateBinary" -i &
-				fi
-		fi
 
 
 		if [[ "$msupdatesUpdatesList" == *"Outlook"* ]] ; then
 			
-			#extract ID of update for msupdate
-			OutlookUpdateID=$( echo "$msupdatesUpdatesList" | grep Outlook | awk '{ print $1 }' )
-	 		# OutlookNoteUpdateName=$( echo "$msupdatesUpdatesList" | grep "Outlook" | awk '{for(i=2; i<=NF; ++i) printf "%s ", $i; print ""}' | xargs )
-	 	
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		outLookappid=$( ps aux | grep "Microsoft Outlook.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
@@ -1305,18 +1407,11 @@ No updates available."
 				installDuration=20
 				fn_addAppToAppsList "Microsoft Outlook.app"
 				# For Self Service Queue the install until after it's over
-				# msUpdates2RunAfterUEX+=( "$OutlookUpdateID" )
-			else
-				msUpdates2RunSilent+=( "$OutlookUpdateID" )
 			fi # Outlook App is Running
 		fi # contains Outlook Update
 
 		if [[ "$msupdatesUpdatesList" == *"Word"* ]] ; then
 			
-			#extract ID of update for msupdate
-			WordUpdateID=$( echo "$msupdatesUpdatesList" | grep Word | awk '{ print $1 }' )
-	 		# WordUpdateName=$( echo "$msupdatesUpdatesList" | grep Word | awk '{for(i=2; i<=NF; ++i) printf "%s ", $i; print ""}' | xargs )
-	 		# WordSilentInstallQueued=$( cat "$autoUpdateLogFile" | grep "update for silent installation: \"$WordUpdateName\"" )
 
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
@@ -1327,17 +1422,11 @@ No updates available."
 				installDuration=20
 				fn_addAppToAppsList "Microsoft Word.app"
 				# For Self Service Queue the install until after it's over
-				# msUpdates2RunAfterUEX+=( "$WordUpdateID" )
-			else
-				msUpdates2RunSilent+=( "$WordUpdateID" )
 			fi # Word App is Running
 		fi # contains Word Update
 
 		if [[ "$msupdatesUpdatesList" == *"PowerPoint"* ]] ; then
 			
-			#extract ID of update for msupdate
-			PowerPointUpdateID=$( echo "$msupdatesUpdatesList" | grep PowerPoint | awk '{ print $1 }' )
-	 		# PowerPointNoteUpdateName=$( echo "$msupdatesUpdatesList" | grep "PowerPoint" | awk '{for(i=2; i<=NF; ++i) printf "%s ", $i; print ""}' | xargs )
 
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
@@ -1348,19 +1437,11 @@ No updates available."
 				installDuration=20
 				fn_addAppToAppsList "Microsoft PowerPoint.app"
 				# For Self Service Queue the install until after it's over
-				# msUpdates2RunAfterUEX+=( "$PowerPointUpdateID" )
-			else
-				msUpdates2RunSilent+=( "$PowerPointUpdateID" )
 			fi # PowerPoint App is Running
 		fi # contains PowerPoint Update
 
 		if [[ "$msupdatesUpdatesList" == *"Excel"* ]] ; then
 			
-			#extract ID of update for msupdate
-			ExcelUpdateID=$( echo "$msupdatesUpdatesList" | grep Excel | awk '{ print $1 }' )
-			# ExcelUpdateName=$( echo "$msupdatesUpdatesList" | grep Excel | awk '{for(i=2; i<=NF; ++i) printf "%s ", $i; print ""}' | xargs )
-	 		# ExcelSilentInstallQueued=$( cat "$autoUpdateLogFile" | grep "update for silent installation: \"$ExcelUpdateName\"" )
-
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		Excelappid=$( ps aux | grep "Microsoft Excel.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
@@ -1370,54 +1451,35 @@ No updates available."
 				installDuration=20
 				fn_addAppToAppsList "Microsoft Excel.app"
 				# For Self Service Queue the install until after it's over
-				# msUpdates2RunAfterUEX+=( "$ExcelUpdateID" )
-			else
-				msUpdates2RunSilent+=( "$ExcelUpdateID" )
 			fi # Excel App is Running
 		fi # contains Excel Update
 
 		## Teams with MAU is not supported yet
 		# if [[ "$msupdatesUpdatesList" == *"Teams"* ]] ; then
-			
-		# 	#extract ID of update for msupdate
-		# 	TeamsUpdateID=$( echo "$msupdatesUpdatesList" | grep Teams | awk '{ print $1 }' )
-	 # 		Teamsappid=$( ps aux | grep "Microsoft Teams.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
+			 		# Teamsappid=$( ps aux | grep "Microsoft Teams.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
 		# 	if [[ "$Teamsappid" ]] ;then
 		# 		checks+=" block"
 		# installDuration=20
 		# 		if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
 		# 		apps+="Microsoft Teams.app"
 			## For Self Service Queue the install until after it's over# 	
-			# msUpdates2RunAfterUEX+=( "$TeamsUpdateID" )
-			# else
-			# 	msUpdates2RunSilent+=( "$TeamsUpdateID" )
 		# 	fi # Teams App is Running
 		# fi # contains Teams Update
 
 		## OneDrive with MAU is not supported yet
 		# if [[ "$msupdatesUpdatesList" == *"OneDrive"* ]] ; then
-			
-		# 	#extract ID of update for msupdate
-		# 	OneDriveUpdateID=$( echo "$msupdatesUpdatesList" | grep OneDrive | awk '{ print $1 }' )
-	 # 		OneDriveappid=$( ps aux | grep "OneDrive.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
+			 		# OneDriveappid=$( ps aux | grep "OneDrive.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
 		# 	if [[ "$OneDriveappid" ]] ;then
 		# 		checks+=" block"
 		# installDuration=20
 		# 		if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
 		# 		apps+="OneDrive.app"
 			## For Self Service Queue the install until after it's over# 	
-			# msUpdates2RunAfterUEX+=( "$OneDriveUpdateID" )
-			# else
-			# 	msUpdates2RunSilent+=( "$OneDriveUpdateID" )
 		# 	fi # OneDrive App is Running
 		# fi # contains OneDrive Update
 
 		if [[ "$msupdatesUpdatesList" == *"OneNote"* ]] ; then
 			
-			#extract ID of update for msupdate
-			OneNoteUpdateID=$( echo "$msupdatesUpdatesList" | grep OneNote | awk '{ print $1 }' )
-	 		# OneNoteUpdateName=$( echo "$msupdatesUpdatesList" | grep OneNote | awk '{for(i=2; i<=NF; ++i) printf "%s ", $i; print ""}' | xargs )
-	 		# OneNoteSilentInstallQueued=$( cat "$autoUpdateLogFile" | grep "update for silent installation: \"$OneNoteUpdateName\"" )
 
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
@@ -1428,18 +1490,11 @@ No updates available."
 				installDuration=20
 				fn_addAppToAppsList "Microsoft OneNote.app"
 				# For Self Service Queue the install until after it's over
-				# msUpdates2RunAfterUEX+=( "$OneNoteUpdateID" )
-			else
-				msUpdates2RunSilent+=( "$OneNoteUpdateID" )
 			fi # OneNote App is Running
 		fi # contains OneNote Update
 
 		if [[ "$msupdatesUpdatesList" == *"Skype For Business"* ]] ; then
 			
-			#extract ID of update for msupdate
-			SFBUpdateID=$( echo "$msupdatesUpdatesList" | grep "Skype For Business" | awk '{ print $1 }' )
-	 		# SFBNoteUpdateName=$( echo "$msupdatesUpdatesList" | grep "Skype For Business" | awk '{for(i=2; i<=NF; ++i) printf "%s ", $i; print ""}' | xargs )
-	 		# SFBNoteSilentInstallQueued=$( cat "$autoUpdateLogFile" | grep "update for silent installation: \"$OneNoteUpdateName\"" )
 
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
@@ -1450,9 +1505,6 @@ No updates available."
 				installDuration=20
 				fn_addAppToAppsList "Skype for Business.app"
 				# For Self Service Queue the install until after it's over
-				# msUpdates2RunAfterUEX+=( "$SFBUpdateID" )
-			else
-				msUpdates2RunSilent+=( "$SFBUpdateID" )
 			fi # SFB App is Running
 		fi # contains SFB Update
 
@@ -1480,11 +1532,9 @@ if [[ "$suspackage" = true ]] ; then
 	appleSUSlog="/private/tmp/swu.log"
 
 
-	if [[ "$selfservicePackage" = true ]] ; then	
-		status="Software Updates,
+	status="Software Updates,
 checking for updates..."
-		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"	
-	fi # selfservice package
+	fn_displayMesssageIfSelfService "$status"
 
 	if [[ $susSetByTrigger = true ]] ;then
 		fn_trigger "$susSettingTriggerName"
@@ -1502,11 +1552,11 @@ checking for updates..."
 	if [[ "$appleUpdates" == *"*"* ]] || [[ "$debug" == true ]] ; then # update are avlaible
 		appleUpdatesAvail=true
 		installDuration=5
-		if [[ "$selfservicePackage" = true ]] ; then	
-			status="Software Updates,
+
+		status="Software Updates,
 Downloading updates."
-			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
-		fi # selfservice package
+		fn_displayMesssageIfSelfService "$status"
+
 		# pre download updates
 		fn_execute_log4_JSS "softwareupdate -d --all"
 
@@ -1514,18 +1564,16 @@ Downloading updates."
 		appleUpdatesAvail=false
 	# 	echo No new software available.
 	# 	echo No new software available no interacton required no notice to show
-		checks="quit"
+		checks="quit suspackage"
 		apps="xayasdf.app;asdfasfd.app"
 		installDuration=1
 		
 		skipNotices="true"
 		
-		if [[ "$selfservicePackage" = true ]] ; then	
-			status="Software Updates,
+		status="Software Updates,
 No updates available."
-			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
-			sleep 5
-		fi # selfservice package
+		fn_displayMesssageIfSelfService "$status"
+		sleep 5
 	fi
 
 	if [[ $appleUpdatesAvail = true ]] ; then 
@@ -1850,7 +1898,7 @@ logInUEX "******* script started ******"
 
 if [[ ! -e "$jamfBinary" ]] ; then 
 "$CocoaDialog" ok-msgbox --icon caution --title "$title" --text "Error"  \
-    --informative-text "There is Scheduled $action being attempted but the computer doesn't have JAMF Management software installed correctly. Please contact $ServiceDeskName for support." \
+    --informative-text "There is a policy being attempted but the computer doesn't have JAMF Management software installed correctly. Please contact $ServiceDeskName for support." \
     --float --no-cancel
     badvariable=true
     logInUEX "ERROR: JAMF binary not found"
@@ -1859,7 +1907,7 @@ fi
 jamfhelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
 if [[ ! -e "$jamfhelper" ]] ; then 
 "$CocoaDialog" ok-msgbox --icon caution --title "$title" --text "Error"  \
-    --informative-text "There is Scheduled $action being attempted but the computer doesn't have JAMF Management software installed correctly. Please contact $ServiceDeskName for support." \
+    --informative-text "There is a policy being attempted but the computer doesn't have JAMF Helper installed correctly. Please contact $ServiceDeskName for support." \
     --float --no-cancel
     badvariable=true
     logInUEX "ERROR: jamfHelper not found"
@@ -3040,7 +3088,7 @@ done
 if [[ "$supportDoNotDisturb" == true ]]; then
 
 	# read the plist of the user 
-	doNotDisturbSetting="$(/usr/libexec/PlistBuddy -c "print doNotDisturb" "$loggedInUserHome/Library/Preferences/ByHost/com.apple.notificationcenterui.$computersUDID.plist")"
+	doNotDisturbSetting="$(/usr/libexec/PlistBuddy -c "print doNotDisturb" "$loggedInUserHome/Library/Preferences/ByHost/com.apple.notificationcenterui.$computersUDID.plist" 2> /dev/null)"
 	if [[ "$doNotDisturbSetting" == true ]]; then
 		log4_JSS "User has Do Not Disturb enabled."
 		presentationRunning=true
@@ -3059,8 +3107,8 @@ fi
 reqlooper=1 
 while [ $reqlooper = 1 ] ; do
 	
-	PostponeClickResultFile=/tmp/$UEXpolicyTrigger.txt
-	echo > "$PostponeClickResultFile"
+	PostponeClickResultFile=/private/tmp/$UEXpolicyTrigger.txt
+	echo "" > "$PostponeClickResultFile"
 	
 	jhTimeOut=1200 # keep the JH window on for 20 mins
 	timeLimit=900 #15 mins
@@ -3085,18 +3133,6 @@ while [ $reqlooper = 1 ] ; do
 		echo 86400 > "$PostponeClickResultFile"
 		PostponeClickResult=86400
 		diskCheckDelayNumber=$((diskCheckDelayNumber+1))
-
-
-		#Critical 
-		# if [[ "$checks" == *"critical"* ]] && [[ "$diskCheckDelayNumber" -gt 1 ]] ; then
-		# 	log4_JSS "Critical Install: User"
-		# elif [[ "$selfservicePackage" = true ]] ; then 
-		# 	#statements
-
-		# else
-
-		# fi
-
 
 
 
@@ -3311,12 +3347,13 @@ if [[ $forceInstall = true ]] && [[ "$checks" == *"compliance"* ]] ; then
 	#statements
 	complianceDescription="This $action is required for compliance and security reasons. 
 
-As it has been put off beyond the limit, this will now be installed automatically.
-
-In the future, to avoid forceful interruptions please try to run this $action before you run out of postponements.
+As it has been put off beyond the limit, this will now be installed automatically. In the future, to avoid forceful interruptions please try to run this $action before you run out of postponements.
 
 Thank you,
-$jamfOpsTeamName"
+$jamfOpsTeamName
+
+
+"
 
 	"$jhPath" -windowType hud -lockHUD -title "$title" -heading "Compliance $actionation - $heading" -description "$complianceDescription" -button1 "OK" -icon "$icon" -windowPosition lr -timeout 300 | grep -v 239 &
 fi
@@ -4076,9 +4113,6 @@ EOT
 	/bin/rm "$installJSSfolder"* 2> /dev/null
 	
 	# Install notification Place holder
-	# /usr/libexec/PlistBuddy -c "add name string ${heading}" "$UEXFolderPath"/install_jss/"$uexNameConsolidated".plist > /dev/null 2>&1
-	# /usr/libexec/PlistBuddy -c "add checks string ${checks}" "$UEXFolderPath"/install_jss/"$uexNameConsolidated".plist > /dev/null 2>&1
-
 	# added here to reduce Redundancy
 	fn_addPlistValue "name" "string" "$heading4PleaseWait" "install_jss" "$uexNameConsolidated.plist"
 	fn_addPlistValue "checks" "string" "$checks" "install_jss" "$uexNameConsolidated.plist"
@@ -4104,20 +4138,6 @@ EOT
 	
 	fi
 
-	# if [[ "$msupdate" = true ]] && [[ "$selfservicePackage" = true ]] ; then
-	# 	#msupdate Version 
-	# 	if [[ $msupdateUpdatesAvail = true ]] ; then
-	# 		log4_JSS "Starting Microsoft Updates"
-	# 		if [[ "$msUpdates2RunAfterUEX" ]] ; then
-	# 			sudo -u "$currentConsoleUserName" "$msupdateBinary" -i -a "${msUpdates2RunAfterUEX[@]}"
-	# 		fi
-	# 	else
-	# 		logInUEX "Skipping uex no updates required"
-	# 	fi
-	
-	# 	/bin/rm "$msupdateLog" > /dev/null 2>&1
-	
-	# fi
 	
 	if [[ "$suspackage" != true ]] ; then
 		# Go through list of packages and install them one by one
@@ -4210,10 +4230,6 @@ EOT
 ##########################################################################################
 
 
-
-
-
-
 	#####################
 	# Stop Progress Bar #
 	#####################
@@ -4271,21 +4287,6 @@ $action completed."
 
 	fi
 
-	#####################################
-	# 		MS UPDATES BACKGROUND	 	#
-	#####################################
-	# if [[ "$msupdate" = true ]] ; then
-	# 	#msupdate Version 
-	# 	if [[ $msupdateUpdatesAvail = true ]] ; then
-	# 		if [[ "$msUpdates2RunSilent" ]] && [[ "$selfservicePackage" = true ]] ; then
-	# 			log4_JSS "Installing Other MS Apps in background"
-	# 			sudo -u "$currentConsoleUserName" "$msupdateBinary" -i -a "${msUpdates2RunSilent[@]}" &
-	# 		fi
-	# 	fi
-	
-	# 	/bin/rm "$msupdateLog" > /dev/null 2>&1
-	
-	# fi
 	
 	#####################
 	# 		Block	 	#
@@ -4381,6 +4382,13 @@ fi # Installations ''
 rm "$resultlogfilepath" > /dev/null 2>&1 
 
 /bin/rm /Library/LaunchAgents/github.cubandave.UEX-jamfhelper.plist > /dev/null 2>&1 
+
+# Disable Inventory Updates for MS Update and ASUS if there's no updates avaialable
+if [[ "$checks" == *"msupdate"* ]] && [[ "$msupdateUpdatesAvail" == false ]] ; then
+	InventoryUpdateRequired=false
+elif [[ "$checks" == *"suspackage"* ]] && [[ "$appleUpdatesAvail" == false ]] ; then
+	InventoryUpdateRequired=false
+fi
 
 if [[ "$InventoryUpdateRequired" = true ]] && [[ "$checks" != *"forcenorecon"* ]] ;then 
 	log4_JSS "Inventory Update Required"
