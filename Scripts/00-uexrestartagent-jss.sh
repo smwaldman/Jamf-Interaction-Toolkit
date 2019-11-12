@@ -29,9 +29,11 @@ fi
 
 title="$(fn_read_uex_Preference "title")"
 
-customLogo="$(fn_read_uex_Preference "customLogo")"
 
-SelfServiceIcon="$(fn_read_uex_Preference "SelfServiceIcon")"
+customIcon="$(fn_read_uex_Preference "customIcon")"
+UexLightIcon="$(fn_read_uex_Preference "UexLightIcon")"
+UexDarkIcon="$(fn_read_uex_Preference "UexDarkIcon")"
+supportDarkModeWithOnlyCustomIcon="$(fn_read_uex_Preference "supportDarkModeWithOnlyCustomIcon")"
 
 
 ##########################################################################################
@@ -65,23 +67,57 @@ SelfServiceIcon="$(fn_read_uex_Preference "SelfServiceIcon")"
 CocoaDialog="$UEXFolderPath/resources/cocoaDialog.app/Contents/MacOS/CocoaDialog"
 
 ##########################################################################################
+##########################################################################################
+##									Icon Magic  										##
+##########################################################################################
+# osMajor=$( /usr/bin/sw_vers -productVersion | awk -F. '{print $2}' )
+
+fn_check4DarkMode (){
+
+	local DarkModeCheck
+	DarkModeCheck=$(sudo -u "$loggedInUser" -H defaults read -g AppleInterfaceStyle 2> /dev/null)
+
+	if [[ -n "$DarkModeCheck" ]]; then
+		echo Dark
+	else
+		echo Light
+	fi
+
+}
+
+
+if [[ "$(fn_check4DarkMode)" == Dark ]];then
+	smartIcon="$UexDarkIcon"
+else
+	smartIcon="$UexLightIcon"
+fi
+
+if [[ -e "$UexDarkIcon" ]] && [[ -e "$UexLightIcon" ]] ; then
+	windowType="utility"
+elif [[ "$supportDarkModeWithOnlyCustomIcon" == true ]] && [[ "$osMajor" -ge 14 ]]; then 
+	windowType="utility"
+else
+	windowType="hud"
+fi
 
 
 ##########################################################################################
-##							STATIC VARIABLES FOR JH DIALOGS								##
+##							STATIC VARIABLES FOR DIALOGS								##
 ##########################################################################################
 
 jhPath="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
 
 #if the icon file doesn't exist then set to a standard icon
-if [[ -e "$SelfServiceIcon" ]] ; then
-	icon="$SelfServiceIcon"
-elif [ -e "$customLogo" ] ; then
-	icon="$customLogo"
+if [[ -e "$smartIcon" ]] ; then
+	icon="$smartIcon"
+	# CDicon="$UexDarkIcon"
+elif [[ -e "$customIcon" ]] ; then
+	icon="$customIcon"
+	# CDicon="$customIcon"
 else
-	icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertNoteIcon.icns"
+	icon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
+	# CDicon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
 fi
-##########################################################################################
 
 ##########################################################################################
 # 										LOGGING PREP									 #
@@ -125,7 +161,7 @@ plists=()
 # shellcheck disable=SC2010
 while IFS='' read -r line; do 
 	plists+=("$line")
-done < <( ls "$UEXFolderPath/resartPlists/" |\
+done < <( ls "$UEXFolderPath/restart_jss/" |\
 		 grep ".plist")
 
 for i in "${plists[@]}" ; do
@@ -232,7 +268,7 @@ Would you to like enter your password to have the computer unlock the disk autom
 Note: Automatic unlock does not always occur.'
 	
 		#notice
-		fvUnlockButton=$( "$jhPath" -windowType hud -lockHUD -heading "$fvUnlockHeading" -windowPostion lr -title "$title" -description "$fvUnlockNotice" -icon "$icon" -timeout 300 -countdown -alignCountdown center -button1 "No" -button2 "Yes"  )
+		fvUnlockButton=$( "$jhPath" -windowType "$windowType" -lockHUD -heading "$fvUnlockHeading" -windowPostion lr -title "$title" -description "$fvUnlockNotice" -icon "$icon" -timeout 300 -countdown -alignCountdown center -button1 "No" -button2 "Yes"  )
 		
 			if [[ "$fvUnlockButton" = 2 ]] ; then
 				log4_JSS "User chose to restart with an authenticatedRestart"
@@ -265,7 +301,7 @@ Note: Automatic unlock does not always occur.'
 	Click "Try Again" or "Cancel".'
 		
 				#notice
-				fvUnlockErrorButton=$( "$jhPath" -windowType hud -lockHUD -heading "$fvUnlockHeading" -windowPostion lr -title "$title" -description "$fvUnlockErrorNotice" -icon "$icon" -timeout 300 -countdown -alignCountdown center -button1 "Cancel" -button2 "Try Again"  )
+				fvUnlockErrorButton=$( "$jhPath" -windowType "$windowType" -lockHUD -heading "$fvUnlockHeading" -windowPostion lr -title "$title" -description "$fvUnlockErrorNotice" -icon "$icon" -timeout 300 -countdown -alignCountdown center -button1 "Cancel" -button2 "Try Again"  )
 				if [[ "$fvUnlockErrorButton" = 2 ]] ; then
 					#statements
 					passwordLooper=0
@@ -291,7 +327,7 @@ Note: Automatic unlock does not always occur.'
 Your computer will be automatically restarted at the end of the countdown.'
 	
 		#notice
-		"$jhPath" -windowType hud -lockHUD -windowPostion lr -title "$title" -description "$notice" -icon "$icon" -timeout 3600 -countdown -alignCountdown center -button1 "Restart Now"
+		"$jhPath" -windowType "$windowType" -lockHUD -windowPostion lr -title "$title" -description "$notice" -icon "$icon" -timeout 3600 -countdown -alignCountdown center -button1 "Restart Now"
 	
 			if [[ "$authenticatedRestart" = true ]] ;then
 				log4_JSS "ENTRY 2: User chose to restart with an authenticatedRestart"

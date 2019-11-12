@@ -30,6 +30,8 @@ fn_delete_JamfUEXGETfolder () {
 UEXhelpticketTrigger="add_to_group_for_disk_space_help_ticket"
 ClearHelpTicketRequirementTrigger="remove_from_group_for_disk_space_help_ticket"
 
+title="UEX - Jamf Pro Configuration Tool"
+
 ##########################################################################################
 ##									Icon Magic  										##
 ##########################################################################################
@@ -51,7 +53,7 @@ dir=$( unset CDPATH && cd "$(dirname "$0")" && echo "$PWD" )
 
 imagesDIR="${dir//API Configuration Tool/images}"
 
-UexLightIcon="$imagesDIR/uex_logo_pride_black.png"
+UexLightIcon="$imagesDIR/uex_logo_pride_gray.png"
 UexDarkIcon="$imagesDIR/uex_logo_pride_white.png"
 
 if [[ "$(fn_check4DarkMode)" == Dark ]];then
@@ -67,7 +69,6 @@ else
 	standardIcon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
 fi
 
-title="UEX - Jamf Pro Configuration Tool"
 
 ##########################################################################################
 ##								Start of Configuration 									##

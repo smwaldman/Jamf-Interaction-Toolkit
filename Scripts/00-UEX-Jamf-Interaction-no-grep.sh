@@ -18,13 +18,16 @@ UEXFolderPath="/Library/Application Support/JAMF/UEX"
 
 title="Your IT Department"
 
-# Jamf Pro 10 icon if you want another custom one then please update it here.
-# or you can customize this with an image you've included in UEX resources or is already local on the computer
-customLogo="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
+# Dark Mode Support 
+# Make sure to add these images to your package 
+UexLightIcon=""
+UexDarkIcon=""
+
+supportDarkModeWithOnlyCustomIcon=false
 
 # if you you jamf Pro 10 to brand the image with your self sevice icon will be here
 # or you can customize this with an image you've included in UEX resources or is already local on the computer
-SelfServiceIcon="$loggedInUserHome/Library/Application Support/com.jamfsoftware.selfservice.mac/Documents/Images/brandingimage.png"
+customIcon="$loggedInUserHome/Library/Application Support/com.jamfsoftware.selfservice.mac/Documents/Images/brandingimage.png"
 
 # if you want to customize the icon users see when they have insufficient space you can specif the path
 # if you include it in your UEX resources it will install there 
@@ -134,9 +137,13 @@ fn_write_uex_Preference "UEXFolderPath" "$UEXFolderPath"
 
 fn_write_uex_Preference "title" "$title"
 
-fn_write_uex_Preference "customLogo" "$customLogo"
+fn_write_uex_Preference "UexDarkIcon" "$UexDarkIcon"
 
-fn_write_uex_Preference "SelfServiceIcon" "$SelfServiceIcon"
+fn_write_uex_Preference "UexLightIcon" "$UexLightIcon"
+
+fn_write_uex_Preference "customIcon" "$customIcon"
+
+fn_write_uex_Preference "supportDarkModeWithOnlyCustomIcon" "$supportDarkModeWithOnlyCustomIcon"
 
 
 
@@ -204,8 +211,8 @@ customMessage=${11}
 
 # for debugging
 # NameConsolidated="UEX;Microsoft Updates;1.0"
-# checks=$( echo "msupdate sfb debug compliance" | tr '[:upper:]' '[:lower:]' )
-# apps=""
+# checks=$( echo "quit debug " | tr '[:upper:]' '[:lower:]' )
+# apps="TextEdit.app"
 # installDuration=15
 # maxdeferConsolidated="3"
 # packages=""
@@ -222,6 +229,13 @@ customMessage=${11}
 # helpTicketsEnabledViaAppRestriction="false"
 # helpTicketsEnabledViaTrigger="false"
 # helpTicketsEnabledViaFunction="false"
+
+# Dark mode tests
+# dir=$( unset CDPATH && cd "$(dirname "$0")" && echo "$PWD" )
+# imagesDIR="${dir//Scripts/images}"
+# UexLightIcon="$imagesDIR/uex_logo_pride_gray.png"
+# UexDarkIcon="$imagesDIR/uex_logo_pride_white.png"
+# supportDarkModeWithOnlyCustomIcon=true
 
 ##########################################################################################
 #								Package name Processing									 #
@@ -301,7 +315,7 @@ fi
 
 
 if [[ $debug = true ]] ; then
-	"$jhPath" -windowType hud -windowPosition ll -title "$title" -description "UEX Script Running in debug mode." -button1 "OK" -timeout 30 > /dev/null 2>&1 &
+	"$jhPath" -windowType "$windowType" -windowPosition ll -title "$title" -description "UEX Script Running in debug mode." -button1 "OK" -timeout 30 > /dev/null 2>&1 &
 	
 	mkdir -p "$debugDIR" > /dev/null 2>&1
 	touch "$debugDIR""$uexNameConsolidated"
@@ -727,27 +741,21 @@ fn_check4PendingRestartsOrLogout () {
 	lastReboot=$( date -jf "%s" "$(sysctl kern.boottime | awk -F'[= |,]' '{print $6}')" "+%s" )
 	# lastRebootFriendly=$( date -r$lastReboot )
 
+	resartPlists=()
 	## Need the plist as a file name in list format
 	# shellcheck disable=SC2010
-	resartPlists=$( ls "$UEXFolderPath"/restart_jss/ | grep "plist" )
-	set -- "$resartPlists"
-	IFS=$'\n'
-	##This works because i'm setting the seperator
-	# shellcheck disable=SC2206
-	# shellcheck disable=SC2048
-	declare -a resartPlists=($*)  
-	unset IFS
+	while IFS='' read -r line; do 
+		resartPlists+=("$line")
+	done < <( ls "$UEXFolderPath/restart_jss/" |\
+			 grep ".plist")
 
+	logoutPlists=()
 	## Need the plist as a file name in list format
 	# shellcheck disable=SC2010
-	logoutPlists=$( ls "$UEXFolderPath"/logout_jss/ | grep "plist" )
-	set -- "$logoutPlists" 
-	IFS=$'\n'
-	##This works because i'm setting the seperator
-	# shellcheck disable=SC2206
-	# shellcheck disable=SC2048
-	declare -a logoutPlists=($*)  
-	unset IFS
+	while IFS='' read -r line; do 
+		logoutPlists+=("$line")
+	done < <( ls "$UEXFolderPath/logout_jss/" |\
+			 grep ".plist")
 
 	# check for any plist that are scheduled to have a restart
 	for i in "${resartPlists[@]}" ; do
@@ -1035,12 +1043,7 @@ heading="${AppVendor} ${AppName}"
 #requcing redundancy in the please wait dialog
 heading4PleaseWait="${AppVendor} ${AppName}"
 
-#if the icon file doesn't exist then set to a standard icon
-if [[ -e "$customLogo" ]] ; then
-	icon="$customLogo"
-else
-	icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertNoteIcon.icns"
-fi
+
 ##########################################################################################
 
 ##########################################################################################
@@ -1218,7 +1221,7 @@ fn_displayMesssageIfSelfService () {
 	local status="$1"
 		if [[ "$selfservicePackage" = true ]] ; then	
 		
-		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
+		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$CDicon"
 		sleep 5
 	fi # selfservice package
 }
@@ -1702,18 +1705,57 @@ unset IFS
 
 #set to true to skip some errors
 
+
+##########################################################################################
+##									Icon Magic  										##
+##########################################################################################
+
+fn_check4DarkMode (){
+
+	local DarkModeCheck
+	DarkModeCheck=$(sudo -u "$loggedInUser" -H defaults read -g AppleInterfaceStyle 2> /dev/null)
+
+	if [[ -n "$DarkModeCheck" ]]; then
+		echo Dark
+	else
+		echo Light
+	fi
+
+}
+
+
+if [[ "$(fn_check4DarkMode)" == Dark ]];then
+	smartIcon="$UexDarkIcon"
+else
+	smartIcon="$UexLightIcon"
+fi
+
+if [[ -e "$UexDarkIcon" ]] && [[ -e "$UexLightIcon" ]] ; then
+	windowType="utility"
+elif [[ "$supportDarkModeWithOnlyCustomIcon" == true ]] && [[ "$osMajor" -ge 14 ]]; then 
+	windowType="utility"
+else
+	windowType="hud"
+fi
+
+
 ##########################################################################################
 #								RESOURCE LOADER											 #
 ##########################################################################################
 
 # only check for the self service icon image if the use is using a custom one
-if [[ "$SelfServiceIcon" != *"com.jamfsoftware.selfservice.mac/Documents/Images/brandingimage.png"* ]] ; then
-	SelfServiceIconCheck="$SelfServiceIcon"
+if [[ "$customIcon" != *"com.jamfsoftware.selfservice.mac/Documents/Images/brandingimage.png"* ]] ; then
+	customIconCheck="$customIcon"
 fi
 
-# only check for the self service icon image if the use is using a custom one
-if [[ "$customLogo" != *"Jamf.app/Contents/Resources/AppIcon.icns"* ]] ; then
-	customLogoCheck="$customLogo"
+# Only check for the logo if it's set
+if [[ -n "$UexDarkIcon" ]] ; then 
+	darkLogoCheck="$UexDarkIcon"
+fi
+
+# Only check for the logo if it's set
+if [[ -n "$UexDarkIcon" ]] ; then 
+	lightLogoCheck="$UexLightIcon"
 fi
 
 # only check for the disk icon image if the use is using a custom one
@@ -1728,8 +1770,9 @@ fi
 
 
 resources=(
-"$customLogoCheck"
-"$SelfServiceIconCheck"
+"$darkLogoCheck"
+"$lightLogoCheck"
+"$customIconCheck"
 "$diskiconCheck"
 "$restrictedAppNameCheck"
 "$UEXFolderPath/resources/cocoaDialog.app"
@@ -1752,12 +1795,15 @@ fi
 
 
 #if the icon file doesn't exist then set to a standard icon
-if [[ -e "$SelfServiceIcon" ]] ; then
-	icon="$SelfServiceIcon"
-elif [[ -e "$customLogo" ]] ; then
-	icon="$customLogo"
+if [[ -e "$smartIcon" ]] ; then
+	icon="$smartIcon"
+	CDicon="$UexDarkIcon"
+elif [[ -e "$customIcon" ]] ; then
+	icon="$customIcon"
+	CDicon="$customIcon"
 else
-	icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertNoteIcon.icns"
+	icon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
+	CDicon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
 fi
 
 #in case the disk icon cannot be found then set the the default
@@ -1914,7 +1960,7 @@ if [[ ! -e "$jamfhelper" ]] ; then
 fi
 
 if [[ ! -e "$CocoaDialog" ]] ; then 
-"$jhPath" -windowType hud -windowPostion center -button1 OK -title Warning -description "cocoaDialog is not in the resources folder" -icon "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertNoteIcon.icns"
+"$jhPath" -windowType "$windowType" -windowPostion center -button1 OK -title Warning -description "cocoaDialog is not in the resources folder" -icon "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertNoteIcon.icns"
 badvariable=true
 logInUEX "ERROR: cocoDialog not found"
 
@@ -2780,8 +2826,8 @@ PostponeMsg+="
 "
 
 
-if [[ -e "$SelfServiceIcon" ]] ; then
-	ssicon="$SelfServiceIcon"
+if [[ -e "$customIcon" ]] ; then
+	ssicon="$customIcon"
 else
 	ssicon="/Applications/Self Service.app/Contents/Resources/Self Service.icns"
 fi
@@ -3121,9 +3167,9 @@ while [ $reqlooper = 1 ] ; do
 	if [[ "$insufficientSpace" = true ]] ; then
 
 		if [[ "$osMajor" -ge 12 ]] ; then
-			SpaceButton=$("$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$spaceMsg" -button1 "OK" -button2 "Find Clutter" -icon "$diskicon" -timeout 600 -windowPosition center -timeout $jhTimeOut | grep -v 239 )
+			SpaceButton=$("$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$spaceMsg" -button1 "OK" -button2 "Find Clutter" -icon "$diskicon" -timeout 600 -windowPosition center -timeout $jhTimeOut | grep -v 239 )
 		else
-			SpaceButton=$("$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$spaceMsg" -button1 "OK" -icon "$diskicon" -timeout 600 -windowPosition center -timeout $jhTimeOut | grep -v 239 )
+			SpaceButton=$("$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$spaceMsg" -button1 "OK" -icon "$diskicon" -timeout 600 -windowPosition center -timeout $jhTimeOut | grep -v 239 )
 		fi
 
 		if [[ "$SpaceButton" = "2" ]] ; then
@@ -3193,22 +3239,22 @@ while [ $reqlooper = 1 ] ; do
 		# log4_JSS "Showing the $action window"
 		if [[ "$checks" == *"critical"* ]] ; then
 			log4_JSS "Showing the $action window. Critical"
-			"$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -button1 "OK" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
+			"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -button1 "OK" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
 		
 		else
 			if [[ "$selfservicePackage" = true ]] ; then 
-				"$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -button1 "Start now" -button2 "Cancel" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
+				"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -button1 "Start now" -button2 "Cancel" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
 			else
 
 				if [[ $delayNumber -ge $maxdefer ]] ; then 
 					log4_JSS "Showing the $action window. No postpones left"
-					"$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -button1 "OK" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
+					"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -button1 "OK" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
 				elif [[ "$checks" == *"restart"* ]] || [[ "$checks" == *"logout"* ]] || [[ "$checks" == *"macosupgrade"* ]] || [[ "$checks" == *"loginwindow"* ]] || [[ "$checks" == *"lockmac"* ]] || [[ "$checks" == *"saveallwork"* ]] ; then
 					log4_JSS "Showing the $action window. Allowing for $action at logout. $postponesLeft postpones left"
-					"$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -showDelayOptions "$delayOptions" -button1 "OK" -button2 "at Logout" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
+					"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -showDelayOptions "$delayOptions" -button1 "OK" -button2 "at Logout" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
 				else
 					log4_JSS "Showing the $action window. $postponesLeft postpones left."
-					"$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -showDelayOptions "$delayOptions" -button1 "OK" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
+					"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -showDelayOptions "$delayOptions" -button1 "OK" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
 				fi # Max defer exceeded
 			fi # self service true
 
@@ -3304,7 +3350,7 @@ while [ $reqlooper = 1 ] ; do
 
 		log4_JSS "User chose to install at logout"
 
-		logoutClickResult=$( "$jhPath" -windowType hud -lockHUD -icon "$logouticon" -title "$title" -heading "Install at logout" -description "$logoutMessage" -button1 "OK" -button2 "Go Back")
+		logoutClickResult=$( "$jhPath" -windowType "$windowType" -lockHUD -icon "$logouticon" -title "$title" -heading "Install at logout" -description "$logoutMessage" -button1 "OK" -button2 "Go Back")
 		if [[ $logoutClickResult = 0 ]] ; then 
 			PostponeClickResult=86400
 			loginscreeninstall=true
@@ -3353,13 +3399,14 @@ Thank you,
 $jamfOpsTeamName
 
 
+
 "
 
-	"$jhPath" -windowType hud -lockHUD -title "$title" -heading "Compliance $actionation - $heading" -description "$complianceDescription" -button1 "OK" -icon "$icon" -windowPosition lr -timeout 300 | grep -v 239 &
+	"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "Compliance $actionation - $heading" -description "$complianceDescription" -button1 "OK" -icon "$icon" -windowPosition lr -timeout 300 | grep -v 239 &
 fi
 
 	if [[ -n $PostponeClickResult ]] && [ $PostponeClickResult -gt 0 ] && [[ $selfservicePackage != true ]] && [[ "$ssavail" == true ]] && [[ "$skipOver" != true ]] && [[ $skipNotices != "true" ]] ; then
-		"$jhPath" -windowType hud -title "$title" -heading "Start the $action anytime" -description "$selfservicerunoption" -showDelayOptions -timeout 20 -icon "$ssicon" -windowPosition lr | grep -v 239 & 
+		"$jhPath" -windowType "$windowType" -title "$title" -heading "Start the $action anytime" -description "$selfservicerunoption" -showDelayOptions -timeout 20 -icon "$ssicon" -windowPosition lr | grep -v 239 & 
 	fi
 
 
@@ -3449,16 +3496,16 @@ Current work may be lost if you do not save before proceeding."
 		if [[ "${apps2quit[*]}" == *".app"* ]] && [[ -z "$PostponeClickResult" ]] || [[ "${apps2ReOpen[*]}" == *".app"* ]] && [[ -z "$PostponeClickResult" ]] || [[ "$checks" == *"saveallwork"* ]] && [[ -z "$PostponeClickResult" ]] ; then
 			fn_generatateApps2quit "areyousure"
 			# if [[ "$checks" == *"critical"* ]] || [[ $delayNumber -ge $maxdefer ]] ; then
-			# 	areYouSure=$( "$jhPath" -windowType hud -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -timeout 300 -countdown)
+			# 	areYouSure=$( "$jhPath" -windowType "$windowType" -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -timeout 300 -countdown)
 			# else
-			# 	areYouSure=$( "$jhPath" -windowType hud -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -button2 "Go Back" -timeout 600 -countdown)
+			# 	areYouSure=$( "$jhPath" -windowType "$windowType" -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -button2 "Go Back" -timeout 600 -countdown)
 			# fi
 			rm "$areYouSureClickResultFile"
 			showAreYouSureWindow=true
 			if [[ "$checks" == *"critical"* ]] || [[ $delayNumber -ge $maxdefer ]] ; then
-				"$jhPath" -windowType hud -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -timeout 300 -countdown > "$areYouSureClickResultFile" &
+				"$jhPath" -windowType "$windowType" -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -timeout 300 -countdown > "$areYouSureClickResultFile" &
 			else
-				"$jhPath" -windowType hud -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -button2 "Go Back" -timeout 600 -countdown > "$areYouSureClickResultFile" &
+				"$jhPath" -windowType "$windowType" -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -button2 "Go Back" -timeout 600 -countdown > "$areYouSureClickResultFile" &
 			fi
 
 			sleep 1
@@ -3521,14 +3568,14 @@ Current work may be lost if you do not save before proceeding."
 		reqlooper=1
 		# /bin/echo postponesLeft is "$postponesLeft"
 		if [[ "$postponesLeft" -gt 0 ]] && [[ "$checks" != *"critical"* ]] ; then
-			"$jhPath" -windowType hud -lockHUD -icon "$baticon" -title "$title" -heading "Charger Required" -description "$battMessage" -button1 "OK" -timeout 60 > /dev/null 2>&1 &
+			"$jhPath" -windowType "$windowType" -lockHUD -icon "$baticon" -title "$title" -heading "Charger Required" -description "$battMessage" -button1 "OK" -timeout 60 > /dev/null 2>&1 &
 		else
 			batteryClickResultFile="/private/tmp/batteryClickResult$UEXpolicyTrigger.txt"
 			##clear the previous response 
 			if [[ -f "$batteryClickResultFile" ]] ; then 
 				/bin/rm "$batteryClickResultFile"
 			fi
-			"$jhPath" -windowType hud -lockHUD -icon "$baticon" -title "$title" -heading "Charger Required" -description "$battMessage" -button1 "No Charger" -timeout 60 > "$batteryClickResultFile" &
+			"$jhPath" -windowType "$windowType" -lockHUD -icon "$baticon" -title "$title" -heading "Charger Required" -description "$battMessage" -button1 "No Charger" -timeout 60 > "$batteryClickResultFile" &
 		fi
 
 
@@ -3751,7 +3798,7 @@ if [[ $PostponeClickResult == "" ]] ; then
 
 # Do not update invtory update if UEX is only being used for notificaitons
 # if its an innstallation polciy then update invetory at the end
-if [[ "$checks" != "notify" ]] || [[ "$checks" != "notify custom" ]] ; then
+if [[ "$checks" != "notify" ]] && [[ "$checks" != "notify custom" ]] ; then
 	InventoryUpdateRequired=true
 fi
 
@@ -3765,7 +3812,7 @@ fi
 	if [[ $packageMissing = true ]] && [[ "$selfservicePackage" = true ]] && [[ $insufficientSpace != true ]] ; then
 		status="$heading,
 Downloading packages..."
-		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
+		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$CDicon"
 
 		fn_trigger "$UEXcachingTrigger"
 
@@ -3785,12 +3832,12 @@ Downloading packages..."
 		status="$heading,
 another $action is starting
 You will be logged out after all software changes are complete."
-		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon" --timeout 10
+		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$CDicon" --timeout 10
 	elif [[ $preApprovedInstall = true ]] && [[ "$loggedInUser" ]] && [[ $restartQueued = true ]] ; then
 		status="$heading,
 another $action is starting
 The restart will happpen after all software changes are complete."
-		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon" --timeout 10
+		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$CDicon" --timeout 10
 	fi
 
 
@@ -3798,14 +3845,14 @@ The restart will happpen after all software changes are complete."
 		status="$heading,
 starting $action..."
 		if [[ "$loggedInUser" ]] ; then 
-			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
+			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$CDicon"
 		else
-			"$jhPath" -icon "$icon" -windowType hud -windowPosition lr -startlaunchd -title "$title" -description "$status" -timeout 5 > /dev/null 2>&1 
+			"$jhPath" -icon "$icon" -windowType "$windowType" -windowPosition lr -startlaunchd -title "$title" -description "$status" -timeout 5 > /dev/null 2>&1 
 		fi
 		logInUEX "Notified user $heading, starting $action... "
 		
 		if [[ -z "$loggedInUser" ]] ; then 
-# 		"$jhPath" -icon "$icon" -windowType hud -windowPosition lr -startlaunchd -title "$title" -description "$status" -timeout 5 > /dev/null 2>&1 &
+# 		"$jhPath" -icon "$icon" -windowType "$windowType" -windowPosition lr -startlaunchd -title "$title" -description "$status" -timeout 5 > /dev/null 2>&1 &
 
 /bin/rm /Library/LaunchAgents/github.cubandave.UEX-jamfhelper.plist > /dev/null 2>&1 
 cat <<EOT >> /Library/LaunchAgents/github.cubandave.UEX-jamfhelper.plist 
@@ -4098,9 +4145,9 @@ EOT
 # 	if [ -z $loggedInUser ] ; then
 # 		status="$heading,
 # 		Currently installing..."
-# # 		"$jhPath" -icon "$icon" -windowType hud -windowPosition lr -startlaunchd -title "$title" -description "$status" > /dev/null 2>&1 &
+# # 		"$jhPath" -icon "$icon" -windowType "$windowType" -windowPosition lr -startlaunchd -title "$title" -description "$status" > /dev/null 2>&1 &
 # 		echo '#!/bin/bash' > /tmp/jamfhelperwindow.sh
-# 		echo '"'"$jhPath"'"' -icon '"'"$icon"'"' -windowType hud -windowPosition lr -startlaunchd -title '"'"$title"'"' -description '"'"$heading is currently installing..."'"' >> /tmp/jamfhelperwindow.sh
+# 		echo '"'"$jhPath"'"' -icon '"'"$icon"'"' -windowType "$windowType" -windowPosition lr -startlaunchd -title '"'"$title"'"' -description '"'"$heading is currently installing..."'"' >> /tmp/jamfhelperwindow.sh
 # 		sh /tmp/jamfhelperwindow.sh &
 # 	fi
 
@@ -4197,7 +4244,7 @@ EOT
 	#if theres a block requirement then delay or one minute so that it can be tested
 	if [[ $debug = true ]] ; then
 		if [[ "$checks" == *"block"* ]] ; then
-			"$jhPath" -windowType hud -windowPosition ll -title "$title" -description "UEX Script Running in debug mode. Test your blocking now!" -button1 "OK" -timeout 30 > /dev/null 2>&1 &
+			"$jhPath" -windowType "$windowType" -windowPosition ll -title "$title" -description "UEX Script Running in debug mode. Test your blocking now!" -button1 "OK" -timeout 30 > /dev/null 2>&1 &
 			sleep 60
 		fi
 	fi
@@ -4279,9 +4326,9 @@ EOT
 		status="$heading,
 $action completed."
 		if [[ "$loggedInUser" ]] ; then 
-			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
+			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$CDicon"
 		else
-			"$jhPath" -icon "$icon" -windowType hud -windowPosition lr -startlaunchd -title "$title" -description "$status" -timeout 5 > /dev/null 2>&1 
+			"$jhPath" -icon "$icon" -windowType "$windowType" -windowPosition lr -startlaunchd -title "$title" -description "$status" -timeout 5 > /dev/null 2>&1 
 		fi
 		logInUEX "Notified user $heading, Completed"
 
