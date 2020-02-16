@@ -22,9 +22,12 @@ fi
 
 title="$(fn_read_uex_Preference "title")"
 
-customLogo="$(fn_read_uex_Preference "customLogo")"
 
-SelfServiceIcon="$(fn_read_uex_Preference "SelfServiceIcon")"
+customIcon="$(fn_read_uex_Preference "customIcon")"
+UexLightIcon="$(fn_read_uex_Preference "UexLightIcon")"
+UexDarkIcon="$(fn_read_uex_Preference "UexDarkIcon")"
+supportDarkModeWithOnlyCustomIcon="$(fn_read_uex_Preference "supportDarkModeWithOnlyCustomIcon")"
+
 
 ##########################################################################################
 ##########################################################################################
@@ -48,20 +51,56 @@ SelfServiceIcon="$(fn_read_uex_Preference "SelfServiceIcon")"
 # Apache License 2.0
 # https://github.com/cubandave/Jamf-Interaction-Toolkit/blob/master/LICENSE
 ##########################################################################################
+##########################################################################################
+##									Icon Magic  										##
+##########################################################################################
+# osMajor=$( /usr/bin/sw_vers -productVersion | awk -F. '{print $2}' )
+
+fn_check4DarkMode (){
+
+	local DarkModeCheck
+	DarkModeCheck=$(sudo -u "$loggedInUser" -H defaults read -g AppleInterfaceStyle 2> /dev/null)
+
+	if [[ -n "$DarkModeCheck" ]]; then
+		echo Dark
+	else
+		echo Light
+	fi
+
+}
+
+
+if [[ "$(fn_check4DarkMode)" == Dark ]];then
+	smartIcon="$UexDarkIcon"
+else
+	smartIcon="$UexLightIcon"
+fi
+
+if [[ -e "$UexDarkIcon" ]] && [[ -e "$UexLightIcon" ]] ; then
+	windowType="utility"
+elif [[ "$supportDarkModeWithOnlyCustomIcon" == true ]] && [[ "$osMajor" -ge 14 ]]; then 
+	windowType="utility"
+else
+	windowType="hud"
+fi
+
 
 ##########################################################################################
-##							STATIC VARIABLES FOR JH DIALOGS								##
+##							STATIC VARIABLES FOR DIALOGS								##
 ##########################################################################################
 
 jhPath="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
 
 #if the icon file doesn't exist then set to a standard icon
-if [[ -e "$SelfServiceIcon" ]] ; then
-	icon="$SelfServiceIcon"
-elif [ -e "$customLogo" ] ; then
-	icon="$customLogo"
+if [[ -e "$smartIcon" ]] ; then
+	icon="$smartIcon"
+	# CDicon="$UexDarkIcon"
+elif [[ -e "$customIcon" ]] ; then
+	icon="$customIcon"
+	# CDicon="$customIcon"
 else
-	icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertNoteIcon.icns"
+	icon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
+	# CDicon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
 fi
 
 ##########################################################################################
@@ -103,28 +142,28 @@ loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' )
 lastReboot=$( date -jf "%s" "$(sysctl kern.boottime | awk -F'[= |,]' '{print $6}')" "+%s" )
 lastRebootFriendly=$( date -r "$lastReboot" )
 
-IFS=$'\n' 
+
+resartPlists=()
 ## Need the plist as a file name in list format
 # shellcheck disable=SC2010
-resartPlists=( "$( ls "$UEXFolderPath"/restart_jss/| grep ".plist" )" )
+while IFS='' read -r line; do 
+	resartPlists+=("$line")
 
-# resartPlists=$( ls $UEXFolderPath/restart_jss/ | grep ".plist" )
-# set -- "$resartPlists"
-# ##This works because i'm setting the seperator
-# # shellcheck disable=SC2048
-# IFS=$'\n' ; declare -a resartPlists=($*)  
-# unset IFS
+done < <( ls "$UEXFolderPath/restart_jss/" |\
+		 grep ".plist")
+
+
+
 ## Need the plist as a file name in list format
 # shellcheck disable=SC2010
-logoutPlists=( "$( ls "$UEXFolderPath"/logout_jss/| grep ".plist" )" )
-unset IFS
+logoutPlists=()
+## Need the plist as a file name in list format
+# shellcheck disable=SC2010
+while IFS='' read -r line; do 
+	logoutPlists+=("$line")
+done < <( ls "$UEXFolderPath/logout_jss/" |\
+		 grep ".plist")
 
-# logoutPlists=$( ls $UEXFolderPath/logout_jss/ | grep ".plist" )
-# set -- "$logoutPlists" 
-# ##This works because i'm setting the seperator
-# # shellcheck disable=SC2048
-# IFS=$'\n' ; declare -a logoutPlists=($*)  
-# unset IFS
 
 ##########################################################################################
 ##					Notification if there are scheduled restarts						##
@@ -269,7 +308,7 @@ if [[ "$loggedInUser" ]] ; then
     Your user will be automatically logged out at the end of the countdown.'
  
         # dialog with 10 minute countdown
-		"$jhPath" -windowType hud -lockHUD -windowPostion lr -title "$title" -description "$notice" -icon "$icon" -timeout 3600 -countdown -alignCountdown center -button1 "Logout Now"
+		"$jhPath" -windowType "$windowType" -lockHUD -windowPostion lr -title "$title" -description "$notice" -icon "$icon" -timeout 3600 -countdown -alignCountdown center -button1 "Logout Now"
      
        
         if [[ "$osMajor" -ge 14 ]] ; then

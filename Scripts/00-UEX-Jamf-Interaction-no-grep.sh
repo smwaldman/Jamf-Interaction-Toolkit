@@ -4,6 +4,8 @@
 # set -x
 loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' | grep -v root )
 loggedInUserHome=$( dscl . read "/Users/$loggedInUser" NFSHomeDirectory | awk '{ print $2 }' )
+computersUDID=$(system_profiler SPHardwareDataType | awk '/UUID/ { print $3; }')
+
 
 ##Saving this for later
 # CONSOLE=$(/usr/bin/python -c 'from SystemConfiguration import SCDynamicStoreCopyConsoleUser; import sys; username = (SCDynamicStoreCopyConsoleUser(None, None, None) or [None])[0]; username = [username,""][username in [u"loginwindow", None, u""]]; sys.stdout.write(username + "\n");')
@@ -16,13 +18,18 @@ UEXFolderPath="/Library/Application Support/JAMF/UEX"
 
 title="Your IT Department"
 
-# Jamf Pro 10 icon if you want another custom one then please update it here.
-# or you can customize this with an image you've included in UEX resources or is already local on the computer
-customLogo="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
+# Dark Mode Support 
+# Make sure to add these images to your package 
+UexLightIcon=""
+UexDarkIcon=""
+
+# If you want to allow the jamfHelper window to support dark mode but only use your custom icon
+# set this to true
+supportDarkModeWithOnlyCustomIcon=false
 
 # if you you jamf Pro 10 to brand the image with your self sevice icon will be here
 # or you can customize this with an image you've included in UEX resources or is already local on the computer
-SelfServiceIcon="$loggedInUserHome/Library/Application Support/com.jamfsoftware.selfservice.mac/Documents/Images/brandingimage.png"
+customIcon="$loggedInUserHome/Library/Application Support/com.jamfsoftware.selfservice.mac/Documents/Images/brandingimage.png"
 
 # if you want to customize the icon users see when they have insufficient space you can specif the path
 # if you include it in your UEX resources it will install there 
@@ -61,7 +68,30 @@ ClearHelpTicketRequirementTrigger="remove_from_group_for_disk_space_help_ticket"
 susSetByTrigger=false
 susSettingTriggerName="set_sus_server"
 
+# #85 installduration needs to know that most macs are SSDs.. it’s 2019
+# set this to true to halve the install duration automaicallt for SSDs
+halveInstallDurationForSSDs=false
 
+# For installations less than 5 mins you may want to automaically switch block to just quit
+switchBlocktoQuitAutomatically=fasle
+
+# If you do not want UEX to respect Do Not Disturb Mode and treat it like a presetation then change this to false
+supportDoNotDisturb=true
+
+# If you want to allow filevaulted machines to prompt for an authenticated resart then set this to true
+enable_filevault_reboot=false
+
+# msupdate needs to be changed to manual when checking for some odd reason
+# The setting below is what it will be set back to after the checking has been done
+# Set this to what ever setting you would like "https://goo.gl/UC04oZ"
+# Change how MAU interacts with updates. Note that AutomaticDownload will do a download and install silently if possible. 
+# Valid values are: Manual, AutomaticCheck, AutomaticDownload
+defaultMsauSetting="AutomaticDownload"
+
+
+# Some organization may not want to allow the "at Logout" or may not use Login/Logout Hooks.
+# If you want to disable this option set the option below to false
+allow2RunAtLogout=true
 
 
 ##########################################################################################
@@ -117,9 +147,15 @@ fn_write_uex_Preference "UEXFolderPath" "$UEXFolderPath"
 
 fn_write_uex_Preference "title" "$title"
 
-fn_write_uex_Preference "customLogo" "$customLogo"
+fn_write_uex_Preference "UexDarkIcon" "$UexDarkIcon"
 
-fn_write_uex_Preference "SelfServiceIcon" "$SelfServiceIcon"
+fn_write_uex_Preference "UexLightIcon" "$UexLightIcon"
+
+fn_write_uex_Preference "customIcon" "$customIcon"
+
+fn_write_uex_Preference "supportDarkModeWithOnlyCustomIcon" "$supportDarkModeWithOnlyCustomIcon"
+
+fn_write_uex_Preference "enableFilevaultReboot" "$enable_filevault_reboot"
 
 
 
@@ -139,16 +175,17 @@ NameConsolidated=$4
 # can also be (quit restart) or (quit logout)
 # can also be (block restart) or (block logout)
 # NEW individual checks (macosupgrade) (saveallwork)
-# Coming soon (lock) (loginwindow)
-# aditional options (power) (nopreclose) (forcenorecon)
-# if the install is critical add "critical"
-# if the app is available in Self Service add "ssavail"
+# NEW Checks for (msupdate)
+# aditional options (power) (nopreclose) (forcenorecon) (noloutoption)
+# if the install is critical and the user cannot pospone add (critical)
+# if the app is available in Self Service add (ssavail)
+# Coming in v6.0 (lock) (loginwindow)
 # LABEL: Checks
 checks=$( echo "$5" | tr '[:upper:]' '[:lower:]' )
 
 
 # apps="xyz.app;asdf.app"
-# LABEL: Apps for Quick and Block
+# LABEL: Apps to Quit or Block
 apps=$6
 
 # Theres are alternate paths that the applications
@@ -186,11 +223,11 @@ customMessage=${11}
 
 
 # for debugging
-# NameConsolidated="UEX;restart tests Dialog;1.0"
-# checks=$( echo "macosupgrade saveallwork compliance" | tr '[:upper:]' '[:lower:]' )
+# NameConsolidated="Apple;macOS Catalina;1.0"
+# checks=$( echo "macosupgrade trigger saveallwork power ssavail" | tr '[:upper:]' '[:lower:]' )
 # apps=""
-# installDuration=15
-# maxdeferConsolidated="3"
+# installDuration=90
+# maxdeferConsolidated="7"
 # packages=""
 # triggers="msupdate"
 # customMessage=""
@@ -205,6 +242,13 @@ customMessage=${11}
 # helpTicketsEnabledViaAppRestriction="false"
 # helpTicketsEnabledViaTrigger="false"
 # helpTicketsEnabledViaFunction="false"
+
+# Dark mode tests
+# dir=$( unset CDPATH && cd "$(dirname "$0")" && echo "$PWD" )
+# imagesDIR="${dir//Scripts/images}"
+# UexLightIcon="$imagesDIR/uex_logo_pride_gray.png"
+# UexDarkIcon="$imagesDIR/uex_logo_pride_white.png"
+# supportDarkModeWithOnlyCustomIcon=true
 
 ##########################################################################################
 #								Package name Processing									 #
@@ -284,7 +328,7 @@ fi
 
 
 if [[ $debug = true ]] ; then
-	"$jhPath" -windowType hud -windowPosition ll -title "$title" -description "UEX Script Running in debug mode." -button1 "OK" -timeout 30 > /dev/null 2>&1 &
+	"$jhPath" -windowType "$windowType" -windowPosition ll -title "$title" -description "UEX Script Running in debug mode." -button1 "OK" -timeout 30 > /dev/null 2>&1 &
 	
 	mkdir -p "$debugDIR" > /dev/null 2>&1
 	touch "$debugDIR""$uexNameConsolidated"
@@ -451,41 +495,38 @@ for package in "${packages[@]}"; do
 		packageContents=$( pkgutil --payload-files "$pkg2install" )
 
 		for app in "${apps[@]}"; do
-			#statements
+
 			logInUEX4DebugMode "Check $package for app $app"
 			if [[ "$packageContents" == *"$app"* ]] ; then
-				#statements 
-
 				loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' | grep -v root )
 				local appfound
-				appfound=$( /usr/bin/find /Applications -maxdepth 3 -iname "$app" )
+				appfound=$( /usr/bin/find /Applications -maxdepth 3 -iname "$app" 2> /dev/null )
 				if [[ -e /Users/"$loggedInUser"/Applications/ ]] ; then
 					local userappfound
-					userappfound=$( /usr/bin/find /Users/"$loggedInUser"/Applications/ -maxdepth 3 -iname "$app" )
+					userappfound=$( /usr/bin/find "$loggedInUserHome/Applications/" -maxdepth 3 -iname "$app" 2> /dev/null)
 				fi
 				
-		# 		altpathsfound=""
 				for altpath in "${altpaths[@]}" ; do
 					
 					if [[ "$altpath" == "~"* ]] ; then 
 						altpathshort=$( echo "$altpath" | cut -c 2- )
-						altuserpath="/Users/${loggedInUser}${altpathshort}"
+						altuserpath="${loggedInUserHome}${altpathshort}"
 						if [[ -e "$altuserpath" ]] ; then 
 							local foundappinalthpath
-							foundappinalthpath=$( /usr/bin/find "$altuserpath" -maxdepth 3 -iname "$app" )
+							foundappinalthpath=$( /usr/bin/find "$altuserpath" -maxdepth 3 -iname "$app" 2> /dev/null)
 						fi
 					else
 						if [[ -e "$altpath" ]] ; then		
 							local foundappinalthpath
-							foundappinalthpath=$( /usr/bin/find "$altpath" -maxdepth 3 -iname "$app" )
+							foundappinalthpath=$( /usr/bin/find "$altpath" -maxdepth 3 -iname "$app" 2> /dev/null)
 						fi
 					fi
 				done
+
 				if [[ "$foundappinalthpath" ]] || [[ "$userappfound" ]] || [[ "$appfound" ]] ; then
-					#statements
-				log4_JSS "$package contains $app and app is already found. Classifying as an update"
-				checks+=" update"
-				break
+					log4_JSS "$package contains $app and app is already found. Classifying as an update"
+					checks+=" update"
+					break
 				fi
 				
 				
@@ -713,27 +754,21 @@ fn_check4PendingRestartsOrLogout () {
 	lastReboot=$( date -jf "%s" "$(sysctl kern.boottime | awk -F'[= |,]' '{print $6}')" "+%s" )
 	# lastRebootFriendly=$( date -r$lastReboot )
 
+	resartPlists=()
 	## Need the plist as a file name in list format
 	# shellcheck disable=SC2010
-	resartPlists=$( ls "$UEXFolderPath"/restart_jss/ | grep "plist" )
-	set -- "$resartPlists"
-	IFS=$'\n'
-	##This works because i'm setting the seperator
-	# shellcheck disable=SC2206
-	# shellcheck disable=SC2048
-	declare -a resartPlists=($*)  
-	unset IFS
+	while IFS='' read -r line; do 
+		resartPlists+=("$line")
+	done < <( ls "$UEXFolderPath/restart_jss/" |\
+			 grep ".plist")
 
+	logoutPlists=()
 	## Need the plist as a file name in list format
 	# shellcheck disable=SC2010
-	logoutPlists=$( ls "$UEXFolderPath"/logout_jss/ | grep "plist" )
-	set -- "$logoutPlists" 
-	IFS=$'\n'
-	##This works because i'm setting the seperator
-	# shellcheck disable=SC2206
-	# shellcheck disable=SC2048
-	declare -a logoutPlists=($*)  
-	unset IFS
+	while IFS='' read -r line; do 
+		logoutPlists+=("$line")
+	done < <( ls "$UEXFolderPath/logout_jss/" |\
+			 grep ".plist")
 
 	# check for any plist that are scheduled to have a restart
 	for i in "${resartPlists[@]}" ; do
@@ -853,7 +888,14 @@ fn_EjectPreviouslyMountedUpdateDisks () {
 
 	## Eject disks with known names for containing macOS Updates"
 	for disk2Eject in "${knownDisks[@]}" ; do
-		knownDisksFound=( "$( /usr/sbin/diskutil list | grep "$disk2Eject" | awk '{print$NF}' | sed 's/.\{2\}$//' )")
+		
+		knownDisksFound=()
+		while IFS='' read -r line; do 
+			knownDisksFound+=("$line")
+		done < <( /usr/sbin/diskutil list |\
+					 grep "$disk2Eject" |\
+					 awk '{print$NF}' |\
+					 sed 's/.\{2\}$//')
 		for eachKnownDisk in "${knownDisksFound[@]}" ; do
 			if [[ "$eachKnownDisk" == *"disk"* ]] ; then
 				echo "ejecting disk $eachKnownDisk"
@@ -863,7 +905,15 @@ fn_EjectPreviouslyMountedUpdateDisks () {
 	done
 
 	## Eject disks with the naming convetion "Apple_HFS macOS 10.1* Update"
-	commonDiskNames=( "$( /usr/sbin/diskutil list | grep "Apple_HFS macOS 10.1" | grep "Update" | awk '{print$NF}' | sed 's/.\{2\}$//' )" )
+	commonDiskNames=()
+		
+		while IFS='' read -r line; do 
+			commonDiskNames+=("$line")
+		done < <( /usr/sbin/diskutil list |\
+					grep "Apple_HFS macOS 10.1" |\
+					grep "Update" | awk '{print$NF}' |\
+					sed 's/.\{2\}$//')
+		
 	for eachFoundDisk in "${commonDiskNames[@]}" ; do
 		if [[ "$eachFoundDisk" == *"disk"* ]] ; then
 			echo "ejecting disk $eachFoundDisk"
@@ -891,28 +941,30 @@ DetermineLoginState
 ##########################################################################################
 ##									SSD Calculations									##
 ##########################################################################################
+if [[ "$halveInstallDurationForSSDs" == "true" ]] ; then 
+	solidstate=$( /usr/sbin/diskutil info / | grep "Solid State" | awk 'BEGIN { FS=":" } ; { print $2}' )
 
-solidstate=$( /usr/sbin/diskutil info / | grep "Solid State" | awk 'BEGIN { FS=":" } ; { print $2}' )
+	if [[ "$solidstate" == *"Yes"* ]] ; then
+		# log computer has a solid state drive
+		solidstate=true
+	else
+		# echo computer does not have a sold state drive or is not specified
+		solidstate=false
+	fi
 
-if [[ "$solidstate" == *"Yes"* ]] ; then
-	# log computer has a solid state drive
-	solidstate=true
-else
-	# echo computer does not have a sold state drive or is not specified
-	solidstate=false
-fi
+	if [[ $solidstate = true ]] ; then
+		installDuration=$((installDuration / 2))
+	fi
+fi # halveInstallDurationForSSDs is true 
 
-if [[ $solidstate = true ]] ; then
-	installDuration=$((installDuration / 2))
-fi
-
-if [[ "$checks" == *"block"* ]] && [[ $installDuration -lt 5 ]] ; then 
-	# original_string='i love Suzi and Marry'
-	# string_to_replace_Suzi_with=Sara
-	# result_string="${original_string/Suzi/$string_to_replace_Suzi_with}"
-	checks="${checks/block/quit}"
-fi
-
+if [[ "$switchBlocktoQuitAutomatically" == "true" ]] ; then 
+	if [[ "$checks" == *"block"* ]] && [[ $installDuration -lt 5 ]] ; then 
+		# original_string='i love Suzi and Marry'
+		# string_to_replace_Suzi_with=Sara
+		# result_string="${original_string/Suzi/$string_to_replace_Suzi_with}"
+		checks="${checks/block/quit}"
+	fi
+fi #switchBlocktoQuitAutomatically is true
 
 ##########################################################################################
 ##								Pre Processing of Variables								##
@@ -1004,12 +1056,7 @@ heading="${AppVendor} ${AppName}"
 #requcing redundancy in the please wait dialog
 heading4PleaseWait="${AppVendor} ${AppName}"
 
-#if the icon file doesn't exist then set to a standard icon
-if [[ -e "$customLogo" ]] ; then
-	icon="$customLogo"
-else
-	icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertNoteIcon.icns"
-fi
+
 ##########################################################################################
 
 ##########################################################################################
@@ -1111,66 +1158,188 @@ fi
 msupdateBinary="/Library/Application Support/Microsoft/MAU2.0/Microsoft AutoUpdate.app/Contents/MacOS/msupdate"
 # autoUpdateLogFile="/Library/Logs/Microsoft/autoupdate.log"
 
+fn_setMSAUHowToCheck () {
+	local property="$1"
+	defaults write com.microsoft.autoupdate2 "HowToCheck" "$property" 
+}
+
 fn_check_4_msupdate () {
+	fn_setMSAUHowToCheck "Manual"
 	echo "" > "$msupdateLog"
 	echo "" > "$msupdateLogPlist"
 	sudo -u "$currentConsoleUserName" "$msupdateBinary" -l | /usr/bin/tee -a "$msupdateLog"
-	sudo -u "$currentConsoleUserName" "$msupdateBinary" -l -f p | /usr/bin/tee -a "$msupdateLogPlist"
+	# redect the output to that it's silent in the policy log
+	sudo -u "$currentConsoleUserName" "$msupdateBinary" -l -f p | /usr/bin/tee -a "$msupdateLogPlist" > /dev/null 2>&1
+
+	fn_setMSAUHowToCheck "$defaultMsauSetting"
+
 }
 
 
 fn_getMSupdatePackageURLs_and_names () {
-	IFS=$'\n'
-	##only download the delta update
-	msUPdatePackageURLS=( "$( grep -v "FullUpdaterLocation" "$msupdateLogPlist" |  grep -A 1 "Location" | /usr/bin/awk -F'<string>|</string>' '{print $2}')" )
-	unset IFS
-	# echo "msUPdatePackageURLS is: $msUPdatePackageURLS"
+
+	# msUPdatePackageURLS=()
+	IFS=''
+	while IFS='' read -r line; do 
+		msUPdatePackageURLS+=("$line")
+	done < <( grep -v "FullUpdaterLocation" "$msupdateLogPlist" |\
+			 grep -A 1 "Location" |\
+			  /usr/bin/awk -F'<string>|</string>' '{print $2}' |\
+			   sed '/^\s*$/d' )
+}
+
+fn_ProcessMsUpdateTargetApp () {
+	case "$checks" in
+		*"excel"* )
+		log4_JSS "UEX is set to check for and install updates only for Microsoft Excel"
+		msUpdatePackageString="Excel"
+		msUpdateString="Excel"
+			;;
+		*"onenote"* )
+		log4_JSS "UEX is set to check for and install updates only for Microsoft OneNote"
+		msUpdatePackageString="OneNote"
+		msUpdateString="OneNote"
+			;;
+		*"outlook"* )
+		log4_JSS "UEX is set to check for and install updates only for Microsoft Outlook"
+		msUpdatePackageString="Outlook"
+		msUpdateString="Outlook"
+			;;
+		*"powerpoint"* )
+		log4_JSS "UEX is set to check for and install updates only for Microsoft PowerPoint"
+		msUpdatePackageString="PowerPoint"
+		msUpdateString="PowerPoint"
+			;;
+		*"word"* )
+		log4_JSS "UEX is set to check for and install updates only for Microsoft Word"
+		msUpdatePackageString="Word"
+		msUpdateString="Word"
+			;;
+		*"sfb"* )
+		log4_JSS "UEX is set to check for and install updates only for Skype For Business"
+		msUpdatePackageString="SkypeForBusines"
+		msUpdateString="Skype For Business"
+			;;
+		*"companyportal"* )
+		log4_JSS "UEX is set to check for and install updates only for Company Portal"
+		msUpdatePackageString="CompanyPortal"
+		msUpdateString="Company Portal"
+			;;
+		*"teams"* )
+		log4_JSS "UEX is set to check for and install updates only for Microsoft Teams"
+		msUpdatePackageString="Teams"
+		msUpdateString="Microsoft Teams"
+			;;
+		*"edge"* )
+		log4_JSS "UEX is set to check for and install updates only for Microsoft Edge"
+		msUpdatePackageString="Edge"
+		msUpdateString="Microsoft Edge"
+			;;
+		*"onedrive"* )
+		log4_JSS "UEX is set to check for and install updates only for Microsoft Edge"
+		msUpdatePackageString="Edge"
+		msUpdateString="Microsoft Edge"
+			;;
+		* ) 
+		msUpdatePackageString="xyz"
+		msUpdateString="xyz"
+
+			;;
+	esac
+
+}
+
+fn_displayMesssageIfSelfService () {
+	local status="$1"
+		if [[ "$selfservicePackage" = true ]] ; then	
+		
+		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$CDicon"
+		sleep 5
+	fi # selfservice package
 }
 
 fn_downloadMSupdatePackages () {
+
 	packages=""
 	for msUpdatePackage in "${msUPdatePackageURLS[@]}" ; do
 		
 		# msUpdatePackageFileName=$( echo "$msUpdatePackage" | sed 's@.*/@@' )
-		msUpdatePackageFileName="$( basename "$msUpdatePackage" )"
+		msUpdatePackageFileName="$(basename "$msUpdatePackage" | sed '/^\s*$/d')"
 		# msUpdatePackageFileName="${msUpdatePackage##*/}"
 		# log4_JSS "msUpdatePackageFileName is: $msUpdatePackageFileName"
 
-
-		local MSupdateDownloadDestination
-		MSupdateDownloadDestination="$waitingRoomDIR""$msUpdatePackageFileName"
-		local tmpMSupdateDownloadDestination
-		tmpMSupdateDownloadDestination="/private/tmp/""$msUpdatePackageFileName"
-		# create the folder if it's not there
-		if [[ ! -d "waitingRoomDIR" ]] ; then 
-			mkdir -p "$waitingRoomDIR" 
-			chmod 700 "$waitingRoomDIR" 
+		downloadMSupdate=""
+		# Alway update AutoUpdate 
+		if [[ "$msUpdatePackageFileName" == *"AutoUpdate"* ]]; then
+			downloadMSupdate=true
+		elif [[ "$msUpdatePackageFileName" == *"$msUpdatePackageString"* ]]; then
+			downloadMSupdate=true
 		fi
 
-		# have it download to a 
-		if [[ ! -f "$MSupdateDownloadDestination" ]] ; then
+		if [[ "$downloadMSupdate" = true ]]; then
+			#statements
+			local MSupdateDownloadDestination
+			MSupdateDownloadDestination="$waitingRoomDIR""$msUpdatePackageFileName"
+			local tmpMSupdateDownloadDestination
+			tmpMSupdateDownloadDestination="/private/tmp/""$msUpdatePackageFileName"
+			# create the folder if it's not there
+			if [[ ! -d "waitingRoomDIR" ]] ; then 
+				mkdir -p "$waitingRoomDIR" 
+				chmod 700 "$waitingRoomDIR" 
+			fi
 
-			# delete the temp file just in case
-			if [[ -e "$tmpMSupdateDownloadDestination" ]] ; then rm "$tmpMSupdateDownloadDestination" ; fi
-			
-			# download to temp directory first
-			curl -o "$tmpMSupdateDownloadDestination" --silent --remote-name --location "$msUpdatePackage"
-			
-			# Move to waiting room when done
-			mv "$tmpMSupdateDownloadDestination" "$MSupdateDownloadDestination"
-		fi
+			# have it download to a 
+			if [[ ! -f "$MSupdateDownloadDestination" ]] ; then
 
-		# if the file exists then add it to the packages variable
-		if [[ -f "$MSupdateDownloadDestination" ]] ; then
-			# add the package name to the packages variable to use the native isntaller method
-			if [[ $packages == *".pkg" ]] ; then  packages+=";" ;  fi
-			packages+="$msUpdatePackageFileName"
-		else
-			log4_JSS "Downloading $msUpdatePackageFileName Failed"
-			# msUpdateDownloadFailed=true
+				# delete the temp file just in case
+				if [[ -e "$tmpMSupdateDownloadDestination" ]] ; then 
+					rm "$tmpMSupdateDownloadDestination"
+				fi
+				
+				log4_JSS "Downloading $msUpdatePackageFileName..."
+				# download to temp directory first
+				check4DownloadError=""
+				check4DownloadError=$(curl -o "$tmpMSupdateDownloadDestination" --show-error --silent --remote-name --location "$msUpdatePackage")
+				
+				# Move to waiting room when done
+				if [[ -n "$check4DownloadError" ]] ;then 
+					echo "$check4DownloadError"
+				else
+					# Install MS Auto AutoUpdate Right Away
+					msupdateAutoUpdatePKG=""
+					if [[ "$msUpdatePackageFileName" == *"AutoUpdate"* ]]; then
+						"$jamfBinary" install -package "$msUpdatePackageFileName" -path "/private/tmp" -target /
+						msupdateAutoUpdatePKG=true
+					else
+						mv "$tmpMSupdateDownloadDestination" "$MSupdateDownloadDestination"
+					fi
+				fi
+			fi
+
+			# if the file exists then add it to the packages variable
+			if [[ -f "$MSupdateDownloadDestination" ]] ; then
+				# add the package name to the packages variable to use the native isntaller method
+				if [[ $packages == *".pkg" ]] ; then  packages+=";" ;  fi
+				packages+="$msUpdatePackageFileName"
+			elif [[ "$msupdateAutoUpdatePKG" != true ]] ; then 
+				log4_JSS "Downloading $msUpdatePackageFileName Failed"
+				# msUpdateDownloadFailed=true
+			fi
+
 		fi
 
 	done
+
+	if [[ -z "$packages" ]] && [[ "$msupdateAutoUpdatePKG" != "true" ]]; then
+		log4_JSS "None of the target MS apps in the policy have updates."
+		msupdatesUpdatesList=""
+		msupdateUpdatesAvail=false
+		checks="quit msupdate"
+		apps="xayasdf.app;asdfasfd.app"
+		installDuration=1
+		
+		skipNotices="true"
+	fi
 }
 
 if [[ "$checks" == *"msupdate"* ]] ; then
@@ -1178,6 +1347,7 @@ if [[ "$checks" == *"msupdate"* ]] ; then
 fi
 
 if [[ "$msupdate" = true ]] ; then
+	checks+=" merp"
 	log4_JSS "UEX is Running Microsoft Updates"
 	msupdateLog="/private/tmp/msupdate.txt"
 	msupdateLogPlist="/private/tmp/msupdate.plist"
@@ -1187,251 +1357,205 @@ if [[ "$msupdate" = true ]] ; then
 	touch "$msupdateLogPlist"
 	
 
-	if [[ "$selfservicePackage" = true ]] ; then	
-		status="Microsoft Software Updates,
+	message="Microsoft Software Updates,
 checking for updates..."
-		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"	
-	fi # selfservice package
+	fn_displayMesssageIfSelfService "$message"
+
 	log4_JSS "Checking Microsoft Updates"
 	
 	fn_check_4_msupdate
 
-	fn_getMSupdatePackageURLs_and_names
+	fn_ProcessMsUpdateTargetApp
 
-	fn_downloadMSupdatePackages
-
-	msupdatesUpdatesList=$( cat "$msupdateLog" )
+	# check for auto update or the specfied string
+	msupdatesUpdatesList=$( grep "Updates available" "$msupdateLog" )
+	msupdatesUpdatesList+=$( grep "AutoUpdate" "$msupdateLog" )
+	msupdatesUpdatesList+=$( grep "$msUpdateString" "$msupdateLog" )
 
 	if [[ "$msupdatesUpdatesList" == *"Updates available:"* ]] || [[ "$debug" == true ]] ; then
 		msupdateUpdatesAvail=true
+
+		fn_getMSupdatePackageURLs_and_names
+
+		fn_downloadMSupdatePackages
 		
 	else
 		msupdateUpdatesAvail=false
 	# 	echo No new software available.
 	# 	echo No new software available no interacton required no notice to show
-		checks="quit"
+		checks="quit msupdate"
 		apps="xayasdf.app;asdfasfd.app"
 		installDuration=1
 		
 		skipNotices="true"
 		
-		if [[ "$selfservicePackage" = true ]] ; then	
-			status="Microsoft Updates,
+
+			message="Microsoft Updates,
 No updates available."
-			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
-			sleep 5
-		fi # selfservice package
+		fn_displayMesssageIfSelfService "$message"
+
+		sleep 5
 	fi
 
-	msUpdates2RunSilent=()
 	if [[ "$msupdateUpdatesAvail" = true ]] ; then
 		
 		# Do the AutoUpdate Updates First then re check for updates
 		if [[ "$msupdatesUpdatesList" == *"AutoUpdate"* ]] ; then
-			
-			#extract ID of update for msupdate
-			# AutoUpdateUpdateID=$( echo "$msupdatesUpdatesList" | grep AutoUpdate | awk '{ print $1 }' )
-			# sudo -u "$currentConsoleUserName" "$msupdateBinary" -i -a "$AutoUpdateUpdateID"
+				fn_check_4_msupdate
 
+				fn_ProcessMsUpdateTargetApp
 
-				msupdatesUpdatesList=$( cat $msupdateLog )
-
-				if [[ "$msupdatesUpdatesList" == *"Updates available:"* ]] || [[ "$debug" == true ]] ; then
-					msupdateUpdatesAvail=true
-				else
+				# check for auto update or the specfied string
+				msupdatesUpdatesList=$( grep "Updates available" "$msupdateLog" )
+				msupdatesUpdatesList+=$( grep "AutoUpdate" "$msupdateLog" )
+				msupdatesUpdatesList+=$( grep "$msUpdateString" "$msupdateLog" )
+				if [[ "$msupdatesUpdatesList" == *"AutoUpdate"* ]] ; then
+					log4_JSS "Microsoft AutoUpdate Failed to update."
 					msupdateUpdatesAvail=false
-				# 	echo No new software available.
-				# 	echo No new software available no interacton required no notice to show
-					checks="quit"
+					msupdatesUpdatesList=""
+
+					checks="quit msupdate"
 					apps="xayasdf.app;asdfasfd.app"
 					installDuration=1
 					
 					skipNotices="true"
-					
-					if [[ "$selfservicePackage" = true ]] ; then	
-						status="Microsoft Updates,
-No updates available."
-						"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
-						sleep 5
-					fi # selfservice package
+				fi
+
+				if [[ "$msupdatesUpdatesList" == *"Updates available:"* ]] || [[ "$debug" == true ]] ; then
+					msupdateUpdatesAvail=true
+
+					fn_getMSupdatePackageURLs_and_names
+
+					fn_downloadMSupdatePackages
 				fi
 		fi # contains AutoUpdate Update
-
-		# try to run now for all apps it queues them anyway
-		if [[ "$msupdatesUpdatesList" == *"Updates available:"* ]] ; then
-				msupdateUpdatesAvail=true
-				if [[ "$selfservicePackage" != true ]] ; then
-					sudo -u "$currentConsoleUserName" "$msupdateBinary" -i &
-				fi
-		fi
 
 
 		if [[ "$msupdatesUpdatesList" == *"Outlook"* ]] ; then
 			
-			#extract ID of update for msupdate
-			OutlookUpdateID=$( echo "$msupdatesUpdatesList" | grep Outlook | awk '{ print $1 }' )
-	 		# OutlookNoteUpdateName=$( echo "$msupdatesUpdatesList" | grep "Outlook" | awk '{for(i=2; i<=NF; ++i) printf "%s ", $i; print ""}' | xargs )
-	 	
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		outLookappid=$( ps aux | grep "Microsoft Outlook.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-			# if [[ "$outLookappid" ]] && [[ "$OutlookNoteSilentInstallQueued" ]] ;then
 			if [[ "$outLookappid" ]] ;then
 				checks+=" block"
-				installDuration=20
+				installDuration=10
 				fn_addAppToAppsList "Microsoft Outlook.app"
-				# For Self Service Queue the install until after it's over
-				# msUpdates2RunAfterUEX+=( "$OutlookUpdateID" )
-			else
-				msUpdates2RunSilent+=( "$OutlookUpdateID" )
 			fi # Outlook App is Running
 		fi # contains Outlook Update
 
 		if [[ "$msupdatesUpdatesList" == *"Word"* ]] ; then
 			
-			#extract ID of update for msupdate
-			WordUpdateID=$( echo "$msupdatesUpdatesList" | grep Word | awk '{ print $1 }' )
-	 		# WordUpdateName=$( echo "$msupdatesUpdatesList" | grep Word | awk '{for(i=2; i<=NF; ++i) printf "%s ", $i; print ""}' | xargs )
-	 		# WordSilentInstallQueued=$( cat "$autoUpdateLogFile" | grep "update for silent installation: \"$WordUpdateName\"" )
 
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		Wordappid=$( ps aux | grep "Microsoft Word.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-			# if [[ "$Wordappid" ]] && [[ "$WordSilentInstallQueued" ]] ;then
 			if [[ "$Wordappid" ]] ;then
 				checks+=" block"
-				installDuration=20
+				installDuration=10
 				fn_addAppToAppsList "Microsoft Word.app"
-				# For Self Service Queue the install until after it's over
-				# msUpdates2RunAfterUEX+=( "$WordUpdateID" )
-			else
-				msUpdates2RunSilent+=( "$WordUpdateID" )
 			fi # Word App is Running
 		fi # contains Word Update
 
 		if [[ "$msupdatesUpdatesList" == *"PowerPoint"* ]] ; then
 			
-			#extract ID of update for msupdate
-			PowerPointUpdateID=$( echo "$msupdatesUpdatesList" | grep PowerPoint | awk '{ print $1 }' )
-	 		# PowerPointNoteUpdateName=$( echo "$msupdatesUpdatesList" | grep "PowerPoint" | awk '{for(i=2; i<=NF; ++i) printf "%s ", $i; print ""}' | xargs )
 
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		PowerPointappid=$( ps aux | grep "Microsoft PowerPoint.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-			# if [[ "$PowerPointappid" ]] && [[ "$PowerPointNoteSilentInstallQueued" ]] ;then
 			if [[ "$PowerPointappid" ]] ;then
 				checks+=" block"
-				installDuration=20
+				installDuration=10
 				fn_addAppToAppsList "Microsoft PowerPoint.app"
-				# For Self Service Queue the install until after it's over
-				# msUpdates2RunAfterUEX+=( "$PowerPointUpdateID" )
-			else
-				msUpdates2RunSilent+=( "$PowerPointUpdateID" )
 			fi # PowerPoint App is Running
 		fi # contains PowerPoint Update
 
 		if [[ "$msupdatesUpdatesList" == *"Excel"* ]] ; then
 			
-			#extract ID of update for msupdate
-			ExcelUpdateID=$( echo "$msupdatesUpdatesList" | grep Excel | awk '{ print $1 }' )
-			# ExcelUpdateName=$( echo "$msupdatesUpdatesList" | grep Excel | awk '{for(i=2; i<=NF; ++i) printf "%s ", $i; print ""}' | xargs )
-	 		# ExcelSilentInstallQueued=$( cat "$autoUpdateLogFile" | grep "update for silent installation: \"$ExcelUpdateName\"" )
-
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		Excelappid=$( ps aux | grep "Microsoft Excel.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-			# if [[ "$Excelappid" ]] && [[ "$ExcelSilentInstallQueued" ]];then
 			if [[ "$Excelappid" ]];then
 				checks+=" block"
-				installDuration=20
+				installDuration=10
 				fn_addAppToAppsList "Microsoft Excel.app"
-				# For Self Service Queue the install until after it's over
-				# msUpdates2RunAfterUEX+=( "$ExcelUpdateID" )
-			else
-				msUpdates2RunSilent+=( "$ExcelUpdateID" )
 			fi # Excel App is Running
 		fi # contains Excel Update
 
-		## Teams with MAU is not supported yet
-		# if [[ "$msupdatesUpdatesList" == *"Teams"* ]] ; then
-			
-		# 	#extract ID of update for msupdate
-		# 	TeamsUpdateID=$( echo "$msupdatesUpdatesList" | grep Teams | awk '{ print $1 }' )
-	 # 		Teamsappid=$( ps aux | grep "Microsoft Teams.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-		# 	if [[ "$Teamsappid" ]] ;then
-		# 		checks+=" block"
-		# installDuration=20
-		# 		if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
-		# 		apps+="Microsoft Teams.app"
-			## For Self Service Queue the install until after it's over# 	
-			# msUpdates2RunAfterUEX+=( "$TeamsUpdateID" )
-			# else
-			# 	msUpdates2RunSilent+=( "$TeamsUpdateID" )
-		# 	fi # Teams App is Running
-		# fi # contains Teams Update
-
-		## OneDrive with MAU is not supported yet
-		# if [[ "$msupdatesUpdatesList" == *"OneDrive"* ]] ; then
-			
-		# 	#extract ID of update for msupdate
-		# 	OneDriveUpdateID=$( echo "$msupdatesUpdatesList" | grep OneDrive | awk '{ print $1 }' )
-	 # 		OneDriveappid=$( ps aux | grep "OneDrive.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-		# 	if [[ "$OneDriveappid" ]] ;then
-		# 		checks+=" block"
-		# installDuration=20
-		# 		if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
-		# 		apps+="OneDrive.app"
-			## For Self Service Queue the install until after it's over# 	
-			# msUpdates2RunAfterUEX+=( "$OneDriveUpdateID" )
-			# else
-			# 	msUpdates2RunSilent+=( "$OneDriveUpdateID" )
-		# 	fi # OneDrive App is Running
-		# fi # contains OneDrive Update
+		if [[ "$msupdatesUpdatesList" == *"OneDrive"* ]] ; then
+	 		
+			## This is needed to get the parent proccess and prevent unwanted blocking
+			# shellcheck disable=SC2009
+	 		OneDriveappid=$( ps aux | grep "OneDrive.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
+			if [[ "$OneDriveappid" ]] ;then
+				checks+=" block"
+				installDuration=5
+				fn_addAppToAppsList "OneDrive.app"
+			fi # OneDrive App is Running
+		fi # contains OneDrive Update
 
 		if [[ "$msupdatesUpdatesList" == *"OneNote"* ]] ; then
 			
-			#extract ID of update for msupdate
-			OneNoteUpdateID=$( echo "$msupdatesUpdatesList" | grep OneNote | awk '{ print $1 }' )
-	 		# OneNoteUpdateName=$( echo "$msupdatesUpdatesList" | grep OneNote | awk '{for(i=2; i<=NF; ++i) printf "%s ", $i; print ""}' | xargs )
-	 		# OneNoteSilentInstallQueued=$( cat "$autoUpdateLogFile" | grep "update for silent installation: \"$OneNoteUpdateName\"" )
-
-	 		## This is needed to get the parent proccess and prevent unwanted blocking
+			## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		OneNoteappid=$( ps aux | grep "Microsoft OneNote.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-			# if [[ "$OneNoteappid" ]] && [[ "$OneNoteSilentInstallQueued" ]] ;then
 			if [[ "$OneNoteappid" ]] ;then
 				checks+=" block"
 				installDuration=20
 				fn_addAppToAppsList "Microsoft OneNote.app"
-				# For Self Service Queue the install until after it's over
-				# msUpdates2RunAfterUEX+=( "$OneNoteUpdateID" )
-			else
-				msUpdates2RunSilent+=( "$OneNoteUpdateID" )
 			fi # OneNote App is Running
 		fi # contains OneNote Update
 
 		if [[ "$msupdatesUpdatesList" == *"Skype For Business"* ]] ; then
 			
-			#extract ID of update for msupdate
-			SFBUpdateID=$( echo "$msupdatesUpdatesList" | grep "Skype For Business" | awk '{ print $1 }' )
-	 		# SFBNoteUpdateName=$( echo "$msupdatesUpdatesList" | grep "Skype For Business" | awk '{for(i=2; i<=NF; ++i) printf "%s ", $i; print ""}' | xargs )
-	 		# SFBNoteSilentInstallQueued=$( cat "$autoUpdateLogFile" | grep "update for silent installation: \"$OneNoteUpdateName\"" )
 
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		SFBappid=$( ps aux | grep "Skype for Business.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-			# if [[ "$SFBappid" ]] && [[ "$SFBNoteSilentInstallQueued" ]] ;then
 			if [[ "$SFBappid" ]] ;then
 				checks+=" block"
-				installDuration=20
+				installDuration=10
 				fn_addAppToAppsList "Skype for Business.app"
-				# For Self Service Queue the install until after it's over
-				# msUpdates2RunAfterUEX+=( "$SFBUpdateID" )
-			else
-				msUpdates2RunSilent+=( "$SFBUpdateID" )
 			fi # SFB App is Running
 		fi # contains SFB Update
 
+		if [[ "$msupdatesUpdatesList" == *"Microsoft Teams"* ]] ; then
+			
+	 		## This is needed to get the parent proccess and prevent unwanted blocking
+			# shellcheck disable=SC2009
+	 		Teamsappid=$( ps aux | grep "Microsoft Teams.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
+			if [[ "$Teamsappid" ]] ;then
+				checks+=" block"
+				installDuration=10
+				fn_addAppToAppsList "Microsoft Teams.app"
+			fi # Teams App is Running
+		fi # contains Teams Update
+
+
+		if [[ "$msupdatesUpdatesList" == *"Company Portal"* ]] ; then
+			
+	 		## This is needed to get the parent proccess and prevent unwanted blocking
+			# shellcheck disable=SC2009
+	 		CPappid=$( ps aux | grep "Company Portal.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
+			if [[ "$CPappid" ]] ;then
+				checks+=" block"
+				installDuration=10
+				fn_addAppToAppsList "Company Portal.app"
+			fi # Company Portal App is Running
+		fi # contains Company Portal Update
+
+		if [[ "$msupdatesUpdatesList" == *"Microsoft Edge"* ]] ; then
+			
+	 		## This is needed to get the parent proccess and prevent unwanted blocking
+			# shellcheck disable=SC2009
+	 		Edgeappid=$( ps aux | grep "Microsoft Edge.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
+			if [[ "$Edgeappid" ]] ;then
+				checks+=" block"
+				installDuration=10
+				fn_addAppToAppsList "Microsoft Edge.app"
+			fi # MS Edge App is Running
+		fi # contains MS Edge Update
+
+		# setup so the pkgs can still run silently
 		if [[ -z "$apps" ]] ; then
 			log4_JSS "No Microsoft Apps Running that need an update. Suppressing Posponement Dialog"
 			checks="quit msupdate"
@@ -1456,11 +1580,9 @@ if [[ "$suspackage" = true ]] ; then
 	appleSUSlog="/private/tmp/swu.log"
 
 
-	if [[ "$selfservicePackage" = true ]] ; then	
-		status="Software Updates,
+	status="Software Updates,
 checking for updates..."
-		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"	
-	fi # selfservice package
+	fn_displayMesssageIfSelfService "$status"
 
 	if [[ $susSetByTrigger = true ]] ;then
 		fn_trigger "$susSettingTriggerName"
@@ -1478,11 +1600,11 @@ checking for updates..."
 	if [[ "$appleUpdates" == *"*"* ]] || [[ "$debug" == true ]] ; then # update are avlaible
 		appleUpdatesAvail=true
 		installDuration=5
-		if [[ "$selfservicePackage" = true ]] ; then	
-			status="Software Updates,
+
+		status="Software Updates,
 Downloading updates."
-			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
-		fi # selfservice package
+		fn_displayMesssageIfSelfService "$status"
+
 		# pre download updates
 		fn_execute_log4_JSS "softwareupdate -d --all"
 
@@ -1490,18 +1612,16 @@ Downloading updates."
 		appleUpdatesAvail=false
 	# 	echo No new software available.
 	# 	echo No new software available no interacton required no notice to show
-		checks="quit"
+		checks="quit suspackage"
 		apps="xayasdf.app;asdfasfd.app"
 		installDuration=1
 		
 		skipNotices="true"
 		
-		if [[ "$selfservicePackage" = true ]] ; then	
-			status="Software Updates,
+		status="Software Updates,
 No updates available."
-			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
-			sleep 5
-		fi # selfservice package
+		fn_displayMesssageIfSelfService "$status"
+		sleep 5
 	fi
 
 	if [[ $appleUpdatesAvail = true ]] ; then 
@@ -1630,18 +1750,57 @@ unset IFS
 
 #set to true to skip some errors
 
+
+##########################################################################################
+##									Icon Magic  										##
+##########################################################################################
+
+fn_check4DarkMode (){
+
+	local DarkModeCheck
+	DarkModeCheck=$(sudo -u "$loggedInUser" -H defaults read -g AppleInterfaceStyle 2> /dev/null)
+
+	if [[ -n "$DarkModeCheck" ]]; then
+		echo Dark
+	else
+		echo Light
+	fi
+
+}
+
+
+if [[ "$(fn_check4DarkMode)" == Dark ]];then
+	smartIcon="$UexDarkIcon"
+else
+	smartIcon="$UexLightIcon"
+fi
+
+if [[ -e "$UexDarkIcon" ]] && [[ -e "$UexLightIcon" ]] ; then
+	windowType="utility"
+elif [[ "$supportDarkModeWithOnlyCustomIcon" == true ]] && [[ "$osMajor" -ge 14 ]]; then 
+	windowType="utility"
+else
+	windowType="hud"
+fi
+
+
 ##########################################################################################
 #								RESOURCE LOADER											 #
 ##########################################################################################
 
 # only check for the self service icon image if the use is using a custom one
-if [[ "$SelfServiceIcon" != *"com.jamfsoftware.selfservice.mac/Documents/Images/brandingimage.png"* ]] ; then
-	SelfServiceIconCheck="$SelfServiceIcon"
+if [[ "$customIcon" != *"com.jamfsoftware.selfservice.mac/Documents/Images/brandingimage.png"* ]] ; then
+	customIconCheck="$customIcon"
 fi
 
-# only check for the self service icon image if the use is using a custom one
-if [[ "$customLogo" != *"Jamf.app/Contents/Resources/AppIcon.icns"* ]] ; then
-	customLogoCheck="$customLogo"
+# Only check for the logo if it's set
+if [[ -n "$UexDarkIcon" ]] ; then 
+	darkLogoCheck="$UexDarkIcon"
+fi
+
+# Only check for the logo if it's set
+if [[ -n "$UexDarkIcon" ]] ; then 
+	lightLogoCheck="$UexLightIcon"
 fi
 
 # only check for the disk icon image if the use is using a custom one
@@ -1656,8 +1815,9 @@ fi
 
 
 resources=(
-"$customLogoCheck"
-"$SelfServiceIconCheck"
+"$darkLogoCheck"
+"$lightLogoCheck"
+"$customIconCheck"
 "$diskiconCheck"
 "$restrictedAppNameCheck"
 "$UEXFolderPath/resources/cocoaDialog.app"
@@ -1680,12 +1840,15 @@ fi
 
 
 #if the icon file doesn't exist then set to a standard icon
-if [[ -e "$SelfServiceIcon" ]] ; then
-	icon="$SelfServiceIcon"
-elif [[ -e "$customLogo" ]] ; then
-	icon="$customLogo"
+if [[ -e "$smartIcon" ]] ; then
+	icon="$smartIcon"
+	CDicon="$UexDarkIcon"
+elif [[ -e "$customIcon" ]] ; then
+	icon="$customIcon"
+	CDicon="$customIcon"
 else
-	icon="/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertNoteIcon.icns"
+	icon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
+	CDicon="/Library/Application Support/JAMF/Jamf.app/Contents/Resources/AppIcon.icns"
 fi
 
 #in case the disk icon cannot be found then set the the default
@@ -1826,7 +1989,7 @@ logInUEX "******* script started ******"
 
 if [[ ! -e "$jamfBinary" ]] ; then 
 "$CocoaDialog" ok-msgbox --icon caution --title "$title" --text "Error"  \
-    --informative-text "There is Scheduled $action being attempted but the computer doesn't have JAMF Management software installed correctly. Please contact $ServiceDeskName for support." \
+    --informative-text "There is a policy being attempted but the computer doesn't have JAMF Management software installed correctly. Please contact $ServiceDeskName for support." \
     --float --no-cancel
     badvariable=true
     logInUEX "ERROR: JAMF binary not found"
@@ -1835,14 +1998,14 @@ fi
 jamfhelper="/Library/Application Support/JAMF/bin/jamfHelper.app/Contents/MacOS/jamfHelper"
 if [[ ! -e "$jamfhelper" ]] ; then 
 "$CocoaDialog" ok-msgbox --icon caution --title "$title" --text "Error"  \
-    --informative-text "There is Scheduled $action being attempted but the computer doesn't have JAMF Management software installed correctly. Please contact $ServiceDeskName for support." \
+    --informative-text "There is a policy being attempted but the computer doesn't have JAMF Helper installed correctly. Please contact $ServiceDeskName for support." \
     --float --no-cancel
     badvariable=true
     logInUEX "ERROR: jamfHelper not found"
 fi
 
 if [[ ! -e "$CocoaDialog" ]] ; then 
-"$jhPath" -windowType hud -windowPostion center -button1 OK -title Warning -description "cocoaDialog is not in the resources folder" -icon "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertNoteIcon.icns"
+"$jhPath" -windowType "$windowType" -windowPostion center -button1 OK -title Warning -description "cocoaDialog is not in the resources folder" -icon "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/AlertNoteIcon.icns"
 badvariable=true
 logInUEX "ERROR: cocoDialog not found"
 
@@ -2128,12 +2291,12 @@ if [[ "$checks" == *"block"* ]] ; then
 
 	for app in "${apps[@]}" ; do
 		IFS=$'\n'
-		loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' | grep -v root )
+		loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' | grep -v root 2> /dev/null)
 		
 		appfound=$( /usr/bin/find /Applications -maxdepth 3 -iname "$app" )
 		
 		if [[ -e /Users/"$loggedInUser"/Applications/ ]] ; then
-			userappfound=$( /usr/bin/find /Users/"$loggedInUser"/Applications/ -maxdepth 3 -iname "$app" )
+			userappfound=$( /usr/bin/find /Users/"$loggedInUser"/Applications/ -maxdepth 3 -iname "$app" 2> /dev/null)
 		fi
 		
 # 		altpathsfound=""
@@ -2144,11 +2307,11 @@ if [[ "$checks" == *"block"* ]] ; then
 				altuserpath="/Users/${loggedInUser}${altpathshort}"
 				
 				if [[ -e "$altuserpath" ]] ; then 
-				foundappinalthpath=$( /usr/bin/find "$altuserpath" -maxdepth 3 -iname "$app" )
+				foundappinalthpath=$( /usr/bin/find "$altuserpath" -maxdepth 3 -iname "$app" 2> /dev/null)
 				fi
 			else
 				if [[ -e "$altpath" ]] ; then		
-					foundappinalthpath=$( /usr/bin/find "$altpath" -maxdepth 3 -iname "$app" )
+					foundappinalthpath=$( /usr/bin/find "$altpath" -maxdepth 3 -iname "$app" 2> /dev/null)
 				fi
 			fi
 			
@@ -2492,16 +2655,12 @@ fi
 ##########################################################################################
 if [[ "$checks" == *"install"* ]] && [[ "$checks" != *"uninstall"* ]] ; then
 	heading="Installing $AppName"
-	action="install"
-elif [[ "$checks" == *"update"* ]] ; then
+elif [[ "$checks" == *"update"* ]] && [[ "$checks" != *"msupdate"* ]] ; then
 	heading="Updating $AppName"
-	action="update"
 elif [[ "$checks" == *"uninstall"* ]] ; then
 	heading="Uninstalling $AppName $AppVersion"
-	action="uninstall"
 else
 	heading="$AppName"
-	action="install"
 fi
 
 if [[ "$checks" == *"critical"* ]] || [[ "$checks" == *"compliance"* ]] ; then
@@ -2672,9 +2831,26 @@ if [[ $selfservicePackage != true ]] && [[ "$checks" != *"critical"* ]] && [[ $d
 
 
 	if [[ "$postponesLeft" -gt 0 ]] ;then 
-	if [[ "$checks" == *"restart"* ]] || [[ "$checks" == *"logout"* ]] || [[ "$checks" == *"macosupgrade"* ]] || [[ "$checks" == *"loginwindow"* ]] || [[ "$checks" == *"lockmac"* ]] || [[ "$checks" == *"saveallworks"* ]] ; then
+
+
+	# This capture a policy spcific option using the check `nolooption`
+	if [[ "$checks" == *"noloutoption"* ]] ; then
+		allow2RunAtLogout=false
+	fi
+
+	# this captures the system-wide option in configuration
+	if [[ "$allow2RunAtLogout" == false ]] ; then
+		logInUEX "Running this policy at logout is not alllowed"
+	elif [[ "$checks" == *"macosupgrade"* ]] ; then
+		allow2RunAtLogout=false
+	elif [[ "$checks" == *"restart"* ]] || [[ "$checks" == *"logout"* ]] || [[ "$checks" == *"lockmac"* ]] || [[ "$checks" == *"saveallwork"* ]] ; then
+		allow2RunAtLogout=true
+	fi
+
+	if [[ "$allow2RunAtLogout" == true ]] ; then
 		PostponeMsg+="
 To run during a break or end of day, click 'at Logout'."
+
 	fi
 	fi
 
@@ -2708,8 +2884,8 @@ PostponeMsg+="
 "
 
 
-if [[ -e "$SelfServiceIcon" ]] ; then
-	ssicon="$SelfServiceIcon"
+if [[ -e "$customIcon" ]] ; then
+	ssicon="$customIcon"
 else
 	ssicon="/Applications/Self Service.app/Contents/Resources/Self Service.icns"
 fi
@@ -3000,7 +3176,7 @@ for app in "${presentationApps[@]}" ; do
 	# shellcheck disable=SC2009
 	appid=$( ps aux | grep "$app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
 	unset IFS
-# 	echo Processing application $app
+	# echo Processing application $app
 	if  [ "$appid" != "" ] ; then
 		log4_JSS "Application $app is Running"
 		presentationRunning=true
@@ -3008,6 +3184,21 @@ for app in "${presentationApps[@]}" ; do
 done
 
 
+##########################################################################################
+##								DO NOT DISTRUB DETECTION								##
+##########################################################################################
+
+# only run this if the admin wants this supported
+if [[ "$supportDoNotDisturb" == true ]]; then
+
+	# read the plist of the user 
+	doNotDisturbSetting="$(/usr/libexec/PlistBuddy -c "print doNotDisturb" "$loggedInUserHome/Library/Preferences/ByHost/com.apple.notificationcenterui.$computersUDID.plist" 2> /dev/null)"
+	if [[ "$doNotDisturbSetting" == true ]]; then
+		log4_JSS "User has Do Not Disturb enabled."
+		presentationRunning=true
+	fi
+	
+fi
 
 
 ##########################################################################################
@@ -3020,8 +3211,8 @@ fi
 reqlooper=1 
 while [ $reqlooper = 1 ] ; do
 	
-	PostponeClickResultFile=/tmp/$UEXpolicyTrigger.txt
-	echo > "$PostponeClickResultFile"
+	PostponeClickResultFile=/private/tmp/$UEXpolicyTrigger.txt
+	echo "" > "$PostponeClickResultFile"
 	
 	jhTimeOut=1200 # keep the JH window on for 20 mins
 	timeLimit=900 #15 mins
@@ -3034,9 +3225,9 @@ while [ $reqlooper = 1 ] ; do
 	if [[ "$insufficientSpace" = true ]] ; then
 
 		if [[ "$osMajor" -ge 12 ]] ; then
-			SpaceButton=$("$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$spaceMsg" -button1 "OK" -button2 "Find Clutter" -icon "$diskicon" -timeout 600 -windowPosition center -timeout $jhTimeOut | grep -v 239 )
+			SpaceButton=$("$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$spaceMsg" -button1 "OK" -button2 "Find Clutter" -icon "$diskicon" -timeout 600 -windowPosition center -timeout $jhTimeOut | grep -v 239 )
 		else
-			SpaceButton=$("$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$spaceMsg" -button1 "OK" -icon "$diskicon" -timeout 600 -windowPosition center -timeout $jhTimeOut | grep -v 239 )
+			SpaceButton=$("$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$spaceMsg" -button1 "OK" -icon "$diskicon" -timeout 600 -windowPosition center -timeout $jhTimeOut | grep -v 239 )
 		fi
 
 		if [[ "$SpaceButton" = "2" ]] ; then
@@ -3046,18 +3237,6 @@ while [ $reqlooper = 1 ] ; do
 		echo 86400 > "$PostponeClickResultFile"
 		PostponeClickResult=86400
 		diskCheckDelayNumber=$((diskCheckDelayNumber+1))
-
-
-		#Critical 
-		# if [[ "$checks" == *"critical"* ]] && [[ "$diskCheckDelayNumber" -gt 1 ]] ; then
-		# 	log4_JSS "Critical Install: User"
-		# elif [[ "$selfservicePackage" = true ]] ; then 
-		# 	#statements
-
-		# else
-
-		# fi
-
 
 
 
@@ -3081,8 +3260,10 @@ while [ $reqlooper = 1 ] ; do
 		log4_JSS "No apps need to be quit so $action can occur."
 		echo 0 > "$PostponeClickResultFile"
 		PostponeClickResult=0
-		skipNotices=true
-		# Only run presetation dely if the user is alllowed to postpone and has postponse avalable
+		if [[ "$selfservicePackage" != true ]] ; then
+			skipNotices=true
+		fi 
+		# Only run presentation delay if the user is alllowed to postpone and has postpones avalable
 		# this means that if they exhaust postpones its because they chose to and we only wiat a max of 3 hour for them to be try and delay after that presetaion delay is not possible
 	elif [[ "$presentationRunning" = true ]] && [[ $presentationDelayNumber -lt 3 ]] && [[ $selfservicePackage != true ]] && [[ "$checks" != *"critical"* ]] && [[ $maxdefer -ge 1 ]] && [[ $delayNumber -lt $maxdefer ]] ; then
 		echo 3600 > "$PostponeClickResultFile"
@@ -3093,7 +3274,7 @@ while [ $reqlooper = 1 ] ; do
 		delayNumber=$((delayNumber-1))
 		skipNotices=true
 		skipOver=true
-		# if an presetation presentation is running and the max defer is 0 or critical then allow only one presentaion delay
+		# if an presentation presentation is running and the max defer is 0 or critical then allow only one presentaion delay
 	elif [[ "$presentationRunning" = true ]] && [[ $presentationDelayNumber -lt 1 ]] && [[ $selfservicePackage != true ]] && [[ $maxdefer = 0 ]] ; then
 		echo 3600 > "$PostponeClickResultFile"
 		PostponeClickResult=3600
@@ -3118,22 +3299,22 @@ while [ $reqlooper = 1 ] ; do
 		# log4_JSS "Showing the $action window"
 		if [[ "$checks" == *"critical"* ]] ; then
 			log4_JSS "Showing the $action window. Critical"
-			"$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -button1 "OK" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
+			"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -button1 "OK" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
 		
 		else
 			if [[ "$selfservicePackage" = true ]] ; then 
-				"$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -button1 "Start now" -button2 "Cancel" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
+				"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -button1 "Start now" -button2 "Cancel" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
 			else
 
 				if [[ $delayNumber -ge $maxdefer ]] ; then 
 					log4_JSS "Showing the $action window. No postpones left"
-					"$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -button1 "OK" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
-				elif [[ "$checks" == *"restart"* ]] || [[ "$checks" == *"logout"* ]] || [[ "$checks" == *"macosupgrade"* ]] || [[ "$checks" == *"loginwindow"* ]] || [[ "$checks" == *"lockmac"* ]] || [[ "$checks" == *"saveallwork"* ]] ; then
+					"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -button1 "OK" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
+				elif [[ "$allow2RunAtLogout" == true ]] ; then
 					log4_JSS "Showing the $action window. Allowing for $action at logout. $postponesLeft postpones left"
-					"$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -showDelayOptions "$delayOptions" -button1 "OK" -button2 "at Logout" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
+					"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -showDelayOptions "$delayOptions" -button1 "OK" -button2 "at Logout" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
 				else
 					log4_JSS "Showing the $action window. $postponesLeft postpones left."
-					"$jhPath" -windowType hud -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -showDelayOptions "$delayOptions" -button1 "OK" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
+					"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -showDelayOptions "$delayOptions" -button1 "OK" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
 				fi # Max defer exceeded
 			fi # self service true
 
@@ -3229,7 +3410,7 @@ while [ $reqlooper = 1 ] ; do
 
 		log4_JSS "User chose to install at logout"
 
-		logoutClickResult=$( "$jhPath" -windowType hud -lockHUD -icon "$logouticon" -title "$title" -heading "Install at logout" -description "$logoutMessage" -button1 "OK" -button2 "Go Back")
+		logoutClickResult=$( "$jhPath" -windowType "$windowType" -lockHUD -icon "$logouticon" -title "$title" -heading "Install at logout" -description "$logoutMessage" -button1 "OK" -button2 "Go Back")
 		if [[ $logoutClickResult = 0 ]] ; then 
 			PostponeClickResult=86400
 			loginscreeninstall=true
@@ -3272,18 +3453,20 @@ if [[ $forceInstall = true ]] && [[ "$checks" == *"compliance"* ]] ; then
 	#statements
 	complianceDescription="This $action is required for compliance and security reasons. 
 
-As it has been put off beyond the limit, this will now be installed automatically.
-
-In the future, to avoid forceful interruptions please try to run this $action before you run out of postponements.
+As it has been put off beyond the limit, this will now be installed automatically. In the future, to avoid forceful interruptions please try to run this $action before you run out of postponements.
 
 Thank you,
-$jamfOpsTeamName"
+$jamfOpsTeamName
 
-	"$jhPath" -windowType hud -lockHUD -title "$title" -heading "Compliance $actionation - $heading" -description "$complianceDescription" -button1 "OK" -icon "$icon" -windowPosition lr -timeout 300 | grep -v 239 &
+
+
+"
+
+	"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "Compliance $actionation - $heading" -description "$complianceDescription" -button1 "OK" -icon "$icon" -windowPosition lr -timeout 300 | grep -v 239 &
 fi
 
 	if [[ -n $PostponeClickResult ]] && [ $PostponeClickResult -gt 0 ] && [[ $selfservicePackage != true ]] && [[ "$ssavail" == true ]] && [[ "$skipOver" != true ]] && [[ $skipNotices != "true" ]] ; then
-		"$jhPath" -windowType hud -title "$title" -heading "Start the $action anytime" -description "$selfservicerunoption" -showDelayOptions -timeout 20 -icon "$ssicon" -windowPosition lr | grep -v 239 & 
+		"$jhPath" -windowType "$windowType" -title "$title" -heading "Start the $action anytime" -description "$selfservicerunoption" -showDelayOptions -timeout 20 -icon "$ssicon" -windowPosition lr | grep -v 239 & 
 	fi
 
 
@@ -3373,16 +3556,16 @@ Current work may be lost if you do not save before proceeding."
 		if [[ "${apps2quit[*]}" == *".app"* ]] && [[ -z "$PostponeClickResult" ]] || [[ "${apps2ReOpen[*]}" == *".app"* ]] && [[ -z "$PostponeClickResult" ]] || [[ "$checks" == *"saveallwork"* ]] && [[ -z "$PostponeClickResult" ]] ; then
 			fn_generatateApps2quit "areyousure"
 			# if [[ "$checks" == *"critical"* ]] || [[ $delayNumber -ge $maxdefer ]] ; then
-			# 	areYouSure=$( "$jhPath" -windowType hud -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -timeout 300 -countdown)
+			# 	areYouSure=$( "$jhPath" -windowType "$windowType" -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -timeout 300 -countdown)
 			# else
-			# 	areYouSure=$( "$jhPath" -windowType hud -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -button2 "Go Back" -timeout 600 -countdown)
+			# 	areYouSure=$( "$jhPath" -windowType "$windowType" -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -button2 "Go Back" -timeout 600 -countdown)
 			# fi
 			rm "$areYouSureClickResultFile"
 			showAreYouSureWindow=true
 			if [[ "$checks" == *"critical"* ]] || [[ $delayNumber -ge $maxdefer ]] ; then
-				"$jhPath" -windowType hud -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -timeout 300 -countdown > "$areYouSureClickResultFile" &
+				"$jhPath" -windowType "$windowType" -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -timeout 300 -countdown > "$areYouSureClickResultFile" &
 			else
-				"$jhPath" -windowType hud -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -button2 "Go Back" -timeout 600 -countdown > "$areYouSureClickResultFile" &
+				"$jhPath" -windowType "$windowType" -lockHUD -icon "$icon" -title "$title" -heading "$areyousureHeading" -description "$areyousureMessage" -button1 "Continue" -button2 "Go Back" -timeout 600 -countdown > "$areYouSureClickResultFile" &
 			fi
 
 			sleep 1
@@ -3445,14 +3628,14 @@ Current work may be lost if you do not save before proceeding."
 		reqlooper=1
 		# /bin/echo postponesLeft is "$postponesLeft"
 		if [[ "$postponesLeft" -gt 0 ]] && [[ "$checks" != *"critical"* ]] ; then
-			"$jhPath" -windowType hud -lockHUD -icon "$baticon" -title "$title" -heading "Charger Required" -description "$battMessage" -button1 "OK" -timeout 60 > /dev/null 2>&1 &
+			"$jhPath" -windowType "$windowType" -lockHUD -icon "$baticon" -title "$title" -heading "Charger Required" -description "$battMessage" -button1 "OK" -timeout 60 > /dev/null 2>&1 &
 		else
 			batteryClickResultFile="/private/tmp/batteryClickResult$UEXpolicyTrigger.txt"
 			##clear the previous response 
 			if [[ -f "$batteryClickResultFile" ]] ; then 
 				/bin/rm "$batteryClickResultFile"
 			fi
-			"$jhPath" -windowType hud -lockHUD -icon "$baticon" -title "$title" -heading "Charger Required" -description "$battMessage" -button1 "No Charger" -timeout 60 > "$batteryClickResultFile" &
+			"$jhPath" -windowType "$windowType" -lockHUD -icon "$baticon" -title "$title" -heading "Charger Required" -description "$battMessage" -button1 "No Charger" -timeout 60 > "$batteryClickResultFile" &
 		fi
 
 
@@ -3675,7 +3858,7 @@ if [[ $PostponeClickResult == "" ]] ; then
 
 # Do not update invtory update if UEX is only being used for notificaitons
 # if its an innstallation polciy then update invetory at the end
-if [[ "$checks" != "notify" ]] || [[ "$checks" != "notify custom" ]] ; then
+if [[ "$checks" != "notify" ]] && [[ "$checks" != "notify custom" ]] ; then
 	InventoryUpdateRequired=true
 fi
 
@@ -3689,7 +3872,7 @@ fi
 	if [[ $packageMissing = true ]] && [[ "$selfservicePackage" = true ]] && [[ $insufficientSpace != true ]] ; then
 		status="$heading,
 Downloading packages..."
-		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
+		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$CDicon"
 
 		fn_trigger "$UEXcachingTrigger"
 
@@ -3709,12 +3892,12 @@ Downloading packages..."
 		status="$heading,
 another $action is starting
 You will be logged out after all software changes are complete."
-		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon" --timeout 10
+		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$CDicon" --timeout 10
 	elif [[ $preApprovedInstall = true ]] && [[ "$loggedInUser" ]] && [[ $restartQueued = true ]] ; then
 		status="$heading,
 another $action is starting
 The restart will happpen after all software changes are complete."
-		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon" --timeout 10
+		"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$CDicon" --timeout 10
 	fi
 
 
@@ -3722,14 +3905,14 @@ The restart will happpen after all software changes are complete."
 		status="$heading,
 starting $action..."
 		if [[ "$loggedInUser" ]] ; then 
-			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
+			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$CDicon"
 		else
-			"$jhPath" -icon "$icon" -windowType hud -windowPosition lr -startlaunchd -title "$title" -description "$status" -timeout 5 > /dev/null 2>&1 
+			"$jhPath" -icon "$icon" -windowType "$windowType" -windowPosition lr -startlaunchd -title "$title" -description "$status" -timeout 5 > /dev/null 2>&1 
 		fi
 		logInUEX "Notified user $heading, starting $action... "
 		
 		if [[ -z "$loggedInUser" ]] ; then 
-# 		"$jhPath" -icon "$icon" -windowType hud -windowPosition lr -startlaunchd -title "$title" -description "$status" -timeout 5 > /dev/null 2>&1 &
+# 		"$jhPath" -icon "$icon" -windowType "$windowType" -windowPosition lr -startlaunchd -title "$title" -description "$status" -timeout 5 > /dev/null 2>&1 &
 
 /bin/rm /Library/LaunchAgents/github.cubandave.UEX-jamfhelper.plist > /dev/null 2>&1 
 cat <<EOT >> /Library/LaunchAgents/github.cubandave.UEX-jamfhelper.plist 
@@ -4022,9 +4205,9 @@ EOT
 # 	if [ -z $loggedInUser ] ; then
 # 		status="$heading,
 # 		Currently installing..."
-# # 		"$jhPath" -icon "$icon" -windowType hud -windowPosition lr -startlaunchd -title "$title" -description "$status" > /dev/null 2>&1 &
+# # 		"$jhPath" -icon "$icon" -windowType "$windowType" -windowPosition lr -startlaunchd -title "$title" -description "$status" > /dev/null 2>&1 &
 # 		echo '#!/bin/bash' > /tmp/jamfhelperwindow.sh
-# 		echo '"'"$jhPath"'"' -icon '"'"$icon"'"' -windowType hud -windowPosition lr -startlaunchd -title '"'"$title"'"' -description '"'"$heading is currently installing..."'"' >> /tmp/jamfhelperwindow.sh
+# 		echo '"'"$jhPath"'"' -icon '"'"$icon"'"' -windowType "$windowType" -windowPosition lr -startlaunchd -title '"'"$title"'"' -description '"'"$heading is currently installing..."'"' >> /tmp/jamfhelperwindow.sh
 # 		sh /tmp/jamfhelperwindow.sh &
 # 	fi
 
@@ -4037,9 +4220,6 @@ EOT
 	/bin/rm "$installJSSfolder"* 2> /dev/null
 	
 	# Install notification Place holder
-	# /usr/libexec/PlistBuddy -c "add name string ${heading}" "$UEXFolderPath"/install_jss/"$uexNameConsolidated".plist > /dev/null 2>&1
-	# /usr/libexec/PlistBuddy -c "add checks string ${checks}" "$UEXFolderPath"/install_jss/"$uexNameConsolidated".plist > /dev/null 2>&1
-
 	# added here to reduce Redundancy
 	fn_addPlistValue "name" "string" "$heading4PleaseWait" "install_jss" "$uexNameConsolidated.plist"
 	fn_addPlistValue "checks" "string" "$checks" "install_jss" "$uexNameConsolidated.plist"
@@ -4065,20 +4245,6 @@ EOT
 	
 	fi
 
-	# if [[ "$msupdate" = true ]] && [[ "$selfservicePackage" = true ]] ; then
-	# 	#msupdate Version 
-	# 	if [[ $msupdateUpdatesAvail = true ]] ; then
-	# 		log4_JSS "Starting Microsoft Updates"
-	# 		if [[ "$msUpdates2RunAfterUEX" ]] ; then
-	# 			sudo -u "$currentConsoleUserName" "$msupdateBinary" -i -a "${msUpdates2RunAfterUEX[@]}"
-	# 		fi
-	# 	else
-	# 		logInUEX "Skipping uex no updates required"
-	# 	fi
-	
-	# 	/bin/rm "$msupdateLog" > /dev/null 2>&1
-	
-	# fi
 	
 	if [[ "$suspackage" != true ]] ; then
 		# Go through list of packages and install them one by one
@@ -4138,7 +4304,7 @@ EOT
 	#if theres a block requirement then delay or one minute so that it can be tested
 	if [[ $debug = true ]] ; then
 		if [[ "$checks" == *"block"* ]] ; then
-			"$jhPath" -windowType hud -windowPosition ll -title "$title" -description "UEX Script Running in debug mode. Test your blocking now!" -button1 "OK" -timeout 30 > /dev/null 2>&1 &
+			"$jhPath" -windowType "$windowType" -windowPosition ll -title "$title" -description "UEX Script Running in debug mode. Test your blocking now!" -button1 "OK" -timeout 30 > /dev/null 2>&1 &
 			sleep 60
 		fi
 	fi
@@ -4169,10 +4335,6 @@ EOT
 ##########################################################################################
 ##								POST INSTALL ACTIONS									##
 ##########################################################################################
-
-
-
-
 
 
 	#####################
@@ -4224,29 +4386,14 @@ EOT
 		status="$heading,
 $action completed."
 		if [[ "$loggedInUser" ]] ; then 
-			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$icon"
+			"$CocoaDialog" bubble --title "$title" --text "$status" --icon-file "$CDicon"
 		else
-			"$jhPath" -icon "$icon" -windowType hud -windowPosition lr -startlaunchd -title "$title" -description "$status" -timeout 5 > /dev/null 2>&1 
+			"$jhPath" -icon "$icon" -windowType "$windowType" -windowPosition lr -startlaunchd -title "$title" -description "$status" -timeout 5 > /dev/null 2>&1 
 		fi
 		logInUEX "Notified user $heading, Completed"
 
 	fi
 
-	#####################################
-	# 		MS UPDATES BACKGROUND	 	#
-	#####################################
-	# if [[ "$msupdate" = true ]] ; then
-	# 	#msupdate Version 
-	# 	if [[ $msupdateUpdatesAvail = true ]] ; then
-	# 		if [[ "$msUpdates2RunSilent" ]] && [[ "$selfservicePackage" = true ]] ; then
-	# 			log4_JSS "Installing Other MS Apps in background"
-	# 			sudo -u "$currentConsoleUserName" "$msupdateBinary" -i -a "${msUpdates2RunSilent[@]}" &
-	# 		fi
-	# 	fi
-	
-	# 	/bin/rm "$msupdateLog" > /dev/null 2>&1
-	
-	# fi
 	
 	#####################
 	# 		Block	 	#
@@ -4271,7 +4418,7 @@ $action completed."
 			appFound=""
 			userAppFound=""
 			# Find the apss in /Applications/ and ~/Applications/ and open as the user
-			appFound=$( /usr/bin/find "/Applications" -maxdepth 3 -iname "$relaunchAppName" )
+			appFound=$( /usr/bin/find "/Applications" -maxdepth 3 -iname "$relaunchAppName" 2> /dev/null)
 			userAppFound=$( /usr/bin/find "$loggedInUserHome/Applications" -maxdepth 3 -iname "$relaunchAppName" 2> /dev/null )
 			
 			if [[ "$appFound" ]] ; then
@@ -4342,6 +4489,13 @@ fi # Installations ''
 rm "$resultlogfilepath" > /dev/null 2>&1 
 
 /bin/rm /Library/LaunchAgents/github.cubandave.UEX-jamfhelper.plist > /dev/null 2>&1 
+
+# Disable Inventory Updates for MS Update and ASUS if there's no updates avaialable
+if [[ "$checks" == *"msupdate"* ]] && [[ "$msupdateUpdatesAvail" == false ]] ; then
+	InventoryUpdateRequired=false
+elif [[ "$checks" == *"suspackage"* ]] && [[ "$appleUpdatesAvail" == false ]] ; then
+	InventoryUpdateRequired=false
+fi
 
 if [[ "$InventoryUpdateRequired" = true ]] && [[ "$checks" != *"forcenorecon"* ]] ;then 
 	log4_JSS "Inventory Update Required"
