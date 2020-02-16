@@ -1,6 +1,6 @@
 # Jamf-Interaction-Toolkit
 
-[![Build Status](https://travis-ci.com/cubandave/Jamf-Interaction-Toolkit.svg?branch=master)](https://travis-ci.com/cubandave/Jamf-Interaction-Toolkit)
+[![Build Status](https://travis-ci.com/green-philodendron/Jamf-Interaction-Toolkit.svg?branch=master)](https://travis-ci.com/green-philodendron/Jamf-Interaction-Toolkit)
 ___
 
 Join the conversation @ **"#uex-tool-for-jamf"** On the MacAdmins Slack
