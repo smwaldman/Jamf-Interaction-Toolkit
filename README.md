@@ -7,7 +7,7 @@ Join the conversation @ **"#uex-tool-for-jamf"** On the MacAdmins Slack
 ___
 # What is the Jamf Interaction Toolkit?
 
-![](./images/macos-mojave-preview.png) 
+![](./images/macos-catalina-preview.png) 
 
 Jamf Interaction Toolkit, commonly known as UEX, was built with a few goals in mind:
 
@@ -55,8 +55,16 @@ The UEX Toolkit supports all types of deployment needs:
 1. Apply [Branding](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/00-Setting-up-UEX-Including-Branding-and-Customising-UEX)
 1. [Upload all required pieces to your Jamf Pro server.](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/00-Setting-up-UEX-Including-Branding-and-Customising-UEX#uploading-to-your-jamf-pro-server)
 1. Run the [API Config Tool](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/00-Setting-up-UEX-Including-Branding-and-Customising-UEX#api-config-tool)
-![](./images/uex-API-config.gif)
 1. The world is your burrito. 🌯 ... [Creating Policies](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/01-Creating-a-UEX-Policy)
+
+![](./images/uex-API-config.gif)
+
+
+# How to upgrade?
+
+* Check out the [new wiki](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/00-Upgrading-from-Previous-Version-of-UEX) to see how easy it is to upgrade.
+
+
 
 
 

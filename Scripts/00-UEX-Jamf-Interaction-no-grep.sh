@@ -23,6 +23,8 @@ title="Your IT Department"
 UexLightIcon=""
 UexDarkIcon=""
 
+# If you want to allow the jamfHelper window to support dark mode but only use your custom icon
+# set this to true
 supportDarkModeWithOnlyCustomIcon=false
 
 # if you you jamf Pro 10 to brand the image with your self sevice icon will be here
@@ -73,8 +75,11 @@ halveInstallDurationForSSDs=false
 # For installations less than 5 mins you may want to automaically switch block to just quit
 switchBlocktoQuitAutomatically=fasle
 
-# If you do not UEX to respect Do Not Disturb Mode and treat it like a presetation then change this to false
+# If you do not want UEX to respect Do Not Disturb Mode and treat it like a presetation then change this to false
 supportDoNotDisturb=true
+
+# If you want to allow filevaulted machines to prompt for an authenticated resart then set this to true
+enable_filevault_reboot=false
 
 # msupdate needs to be changed to manual when checking for some odd reason
 # The setting below is what it will be set back to after the checking has been done
@@ -82,6 +87,11 @@ supportDoNotDisturb=true
 # Change how MAU interacts with updates. Note that AutomaticDownload will do a download and install silently if possible. 
 # Valid values are: Manual, AutomaticCheck, AutomaticDownload
 defaultMsauSetting="AutomaticDownload"
+
+
+# Some organization may not want to allow the "at Logout" or may not use Login/Logout Hooks.
+# If you want to disable this option set the option below to false
+allow2RunAtLogout=true
 
 
 ##########################################################################################
@@ -145,6 +155,8 @@ fn_write_uex_Preference "customIcon" "$customIcon"
 
 fn_write_uex_Preference "supportDarkModeWithOnlyCustomIcon" "$supportDarkModeWithOnlyCustomIcon"
 
+fn_write_uex_Preference "enableFilevaultReboot" "$enable_filevault_reboot"
+
 
 
 ##########################################################################################
@@ -163,16 +175,17 @@ NameConsolidated=$4
 # can also be (quit restart) or (quit logout)
 # can also be (block restart) or (block logout)
 # NEW individual checks (macosupgrade) (saveallwork)
-# Coming soon (lock) (loginwindow)
-# aditional options (power) (nopreclose) (forcenorecon)
-# if the install is critical add "critical"
-# if the app is available in Self Service add "ssavail"
+# NEW Checks for (msupdate)
+# aditional options (power) (nopreclose) (forcenorecon) (noloutoption)
+# if the install is critical and the user cannot pospone add (critical)
+# if the app is available in Self Service add (ssavail)
+# Coming in v6.0 (lock) (loginwindow)
 # LABEL: Checks
 checks=$( echo "$5" | tr '[:upper:]' '[:lower:]' )
 
 
 # apps="xyz.app;asdf.app"
-# LABEL: Apps for Quick and Block
+# LABEL: Apps to Quit or Block
 apps=$6
 
 # Theres are alternate paths that the applications
@@ -210,11 +223,11 @@ customMessage=${11}
 
 
 # for debugging
-# NameConsolidated="UEX;Microsoft Updates;1.0"
-# checks=$( echo "quit debug " | tr '[:upper:]' '[:lower:]' )
-# apps="TextEdit.app"
-# installDuration=15
-# maxdeferConsolidated="3"
+# NameConsolidated="Apple;macOS Catalina;1.0"
+# checks=$( echo "macosupgrade trigger saveallwork power ssavail" | tr '[:upper:]' '[:lower:]' )
+# apps=""
+# installDuration=90
+# maxdeferConsolidated="7"
 # packages=""
 # triggers="msupdate"
 # customMessage=""
@@ -1178,41 +1191,60 @@ fn_getMSupdatePackageURLs_and_names () {
 fn_ProcessMsUpdateTargetApp () {
 	case "$checks" in
 		*"excel"* )
-		log4_JSS "UEX is set to check for and install updates only for MS Excel"
+		log4_JSS "UEX is set to check for and install updates only for Microsoft Excel"
 		msUpdatePackageString="Excel"
 		msUpdateString="Excel"
 			;;
 		*"onenote"* )
-		log4_JSS "UEX is set to check for and install updates only for MS OneNote"
+		log4_JSS "UEX is set to check for and install updates only for Microsoft OneNote"
 		msUpdatePackageString="OneNote"
 		msUpdateString="OneNote"
 			;;
 		*"outlook"* )
-		log4_JSS "UEX is set to check for and install updates only for MS Outlook"
+		log4_JSS "UEX is set to check for and install updates only for Microsoft Outlook"
 		msUpdatePackageString="Outlook"
 		msUpdateString="Outlook"
 			;;
 		*"powerpoint"* )
-		log4_JSS "UEX is set to check for and install updates only for MS PowerPoint"
+		log4_JSS "UEX is set to check for and install updates only for Microsoft PowerPoint"
 		msUpdatePackageString="PowerPoint"
 		msUpdateString="PowerPoint"
 			;;
 		*"word"* )
-		log4_JSS "UEX is set to check for and install updates only for MS Word"
+		log4_JSS "UEX is set to check for and install updates only for Microsoft Word"
 		msUpdatePackageString="Word"
 		msUpdateString="Word"
 			;;
 		*"sfb"* )
-		log4_JSS "UEX is set to check for and install updates only for MS SkypeForBusines"
+		log4_JSS "UEX is set to check for and install updates only for Skype For Business"
 		msUpdatePackageString="SkypeForBusines"
 		msUpdateString="Skype For Business"
 			;;
-
+		*"companyportal"* )
+		log4_JSS "UEX is set to check for and install updates only for Company Portal"
+		msUpdatePackageString="CompanyPortal"
+		msUpdateString="Company Portal"
+			;;
+		*"teams"* )
+		log4_JSS "UEX is set to check for and install updates only for Microsoft Teams"
+		msUpdatePackageString="Teams"
+		msUpdateString="Microsoft Teams"
+			;;
+		*"edge"* )
+		log4_JSS "UEX is set to check for and install updates only for Microsoft Edge"
+		msUpdatePackageString="Edge"
+		msUpdateString="Microsoft Edge"
+			;;
+		*"onedrive"* )
+		log4_JSS "UEX is set to check for and install updates only for Microsoft Edge"
+		msUpdatePackageString="Edge"
+		msUpdateString="Microsoft Edge"
+			;;
 		* ) 
 		msUpdatePackageString="xyz"
 		msUpdateString="xyz"
 
-			;;					
+			;;
 	esac
 
 }
@@ -1404,12 +1436,10 @@ No updates available."
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		outLookappid=$( ps aux | grep "Microsoft Outlook.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-			# if [[ "$outLookappid" ]] && [[ "$OutlookNoteSilentInstallQueued" ]] ;then
 			if [[ "$outLookappid" ]] ;then
 				checks+=" block"
-				installDuration=20
+				installDuration=10
 				fn_addAppToAppsList "Microsoft Outlook.app"
-				# For Self Service Queue the install until after it's over
 			fi # Outlook App is Running
 		fi # contains Outlook Update
 
@@ -1419,12 +1449,10 @@ No updates available."
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		Wordappid=$( ps aux | grep "Microsoft Word.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-			# if [[ "$Wordappid" ]] && [[ "$WordSilentInstallQueued" ]] ;then
 			if [[ "$Wordappid" ]] ;then
 				checks+=" block"
-				installDuration=20
+				installDuration=10
 				fn_addAppToAppsList "Microsoft Word.app"
-				# For Self Service Queue the install until after it's over
 			fi # Word App is Running
 		fi # contains Word Update
 
@@ -1434,12 +1462,10 @@ No updates available."
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		PowerPointappid=$( ps aux | grep "Microsoft PowerPoint.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-			# if [[ "$PowerPointappid" ]] && [[ "$PowerPointNoteSilentInstallQueued" ]] ;then
 			if [[ "$PowerPointappid" ]] ;then
 				checks+=" block"
-				installDuration=20
+				installDuration=10
 				fn_addAppToAppsList "Microsoft PowerPoint.app"
-				# For Self Service Queue the install until after it's over
 			fi # PowerPoint App is Running
 		fi # contains PowerPoint Update
 
@@ -1448,51 +1474,34 @@ No updates available."
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		Excelappid=$( ps aux | grep "Microsoft Excel.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-			# if [[ "$Excelappid" ]] && [[ "$ExcelSilentInstallQueued" ]];then
 			if [[ "$Excelappid" ]];then
 				checks+=" block"
-				installDuration=20
+				installDuration=10
 				fn_addAppToAppsList "Microsoft Excel.app"
-				# For Self Service Queue the install until after it's over
 			fi # Excel App is Running
 		fi # contains Excel Update
 
-		## Teams with MAU is not supported yet
-		# if [[ "$msupdatesUpdatesList" == *"Teams"* ]] ; then
-			 		# Teamsappid=$( ps aux | grep "Microsoft Teams.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-		# 	if [[ "$Teamsappid" ]] ;then
-		# 		checks+=" block"
-		# installDuration=20
-		# 		if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
-		# 		apps+="Microsoft Teams.app"
-			## For Self Service Queue the install until after it's over# 	
-		# 	fi # Teams App is Running
-		# fi # contains Teams Update
-
-		## OneDrive with MAU is not supported yet
-		# if [[ "$msupdatesUpdatesList" == *"OneDrive"* ]] ; then
-			 		# OneDriveappid=$( ps aux | grep "OneDrive.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-		# 	if [[ "$OneDriveappid" ]] ;then
-		# 		checks+=" block"
-		# installDuration=20
-		# 		if [[ $apps == *".app" ]] ; then  apps+=";" ;  fi
-		# 		apps+="OneDrive.app"
-			## For Self Service Queue the install until after it's over# 	
-		# 	fi # OneDrive App is Running
-		# fi # contains OneDrive Update
+		if [[ "$msupdatesUpdatesList" == *"OneDrive"* ]] ; then
+	 		
+			## This is needed to get the parent proccess and prevent unwanted blocking
+			# shellcheck disable=SC2009
+	 		OneDriveappid=$( ps aux | grep "OneDrive.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
+			if [[ "$OneDriveappid" ]] ;then
+				checks+=" block"
+				installDuration=5
+				fn_addAppToAppsList "OneDrive.app"
+			fi # OneDrive App is Running
+		fi # contains OneDrive Update
 
 		if [[ "$msupdatesUpdatesList" == *"OneNote"* ]] ; then
 			
-
-	 		## This is needed to get the parent proccess and prevent unwanted blocking
+			## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		OneNoteappid=$( ps aux | grep "Microsoft OneNote.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-			# if [[ "$OneNoteappid" ]] && [[ "$OneNoteSilentInstallQueued" ]] ;then
 			if [[ "$OneNoteappid" ]] ;then
 				checks+=" block"
 				installDuration=20
 				fn_addAppToAppsList "Microsoft OneNote.app"
-				# For Self Service Queue the install until after it's over
 			fi # OneNote App is Running
 		fi # contains OneNote Update
 
@@ -1502,15 +1511,51 @@ No updates available."
 	 		## This is needed to get the parent proccess and prevent unwanted blocking
 			# shellcheck disable=SC2009
 	 		SFBappid=$( ps aux | grep "Skype for Business.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
-			# if [[ "$SFBappid" ]] && [[ "$SFBNoteSilentInstallQueued" ]] ;then
 			if [[ "$SFBappid" ]] ;then
 				checks+=" block"
-				installDuration=20
+				installDuration=10
 				fn_addAppToAppsList "Skype for Business.app"
-				# For Self Service Queue the install until after it's over
 			fi # SFB App is Running
 		fi # contains SFB Update
 
+		if [[ "$msupdatesUpdatesList" == *"Microsoft Teams"* ]] ; then
+			
+	 		## This is needed to get the parent proccess and prevent unwanted blocking
+			# shellcheck disable=SC2009
+	 		Teamsappid=$( ps aux | grep "Microsoft Teams.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
+			if [[ "$Teamsappid" ]] ;then
+				checks+=" block"
+				installDuration=10
+				fn_addAppToAppsList "Microsoft Teams.app"
+			fi # Teams App is Running
+		fi # contains Teams Update
+
+
+		if [[ "$msupdatesUpdatesList" == *"Company Portal"* ]] ; then
+			
+	 		## This is needed to get the parent proccess and prevent unwanted blocking
+			# shellcheck disable=SC2009
+	 		CPappid=$( ps aux | grep "Company Portal.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
+			if [[ "$CPappid" ]] ;then
+				checks+=" block"
+				installDuration=10
+				fn_addAppToAppsList "Company Portal.app"
+			fi # Company Portal App is Running
+		fi # contains Company Portal Update
+
+		if [[ "$msupdatesUpdatesList" == *"Microsoft Edge"* ]] ; then
+			
+	 		## This is needed to get the parent proccess and prevent unwanted blocking
+			# shellcheck disable=SC2009
+	 		Edgeappid=$( ps aux | grep "Microsoft Edge.app/Contents/MacOS/" | grep -v grep | grep -v jamf | awk '{ print $2 }' )
+			if [[ "$Edgeappid" ]] ;then
+				checks+=" block"
+				installDuration=10
+				fn_addAppToAppsList "Microsoft Edge.app"
+			fi # MS Edge App is Running
+		fi # contains MS Edge Update
+
+		# setup so the pkgs can still run silently
 		if [[ -z "$apps" ]] ; then
 			log4_JSS "No Microsoft Apps Running that need an update. Suppressing Posponement Dialog"
 			checks="quit msupdate"
@@ -2610,16 +2655,12 @@ fi
 ##########################################################################################
 if [[ "$checks" == *"install"* ]] && [[ "$checks" != *"uninstall"* ]] ; then
 	heading="Installing $AppName"
-	action="install"
-elif [[ "$checks" == *"update"* ]] ; then
+elif [[ "$checks" == *"update"* ]] && [[ "$checks" != *"msupdate"* ]] ; then
 	heading="Updating $AppName"
-	action="update"
 elif [[ "$checks" == *"uninstall"* ]] ; then
 	heading="Uninstalling $AppName $AppVersion"
-	action="uninstall"
 else
 	heading="$AppName"
-	action="install"
 fi
 
 if [[ "$checks" == *"critical"* ]] || [[ "$checks" == *"compliance"* ]] ; then
@@ -2790,9 +2831,26 @@ if [[ $selfservicePackage != true ]] && [[ "$checks" != *"critical"* ]] && [[ $d
 
 
 	if [[ "$postponesLeft" -gt 0 ]] ;then 
-	if [[ "$checks" == *"restart"* ]] || [[ "$checks" == *"logout"* ]] || [[ "$checks" == *"macosupgrade"* ]] || [[ "$checks" == *"loginwindow"* ]] || [[ "$checks" == *"lockmac"* ]] || [[ "$checks" == *"saveallworks"* ]] ; then
+
+
+	# This capture a policy spcific option using the check `nolooption`
+	if [[ "$checks" == *"noloutoption"* ]] ; then
+		allow2RunAtLogout=false
+	fi
+
+	# this captures the system-wide option in configuration
+	if [[ "$allow2RunAtLogout" == false ]] ; then
+		logInUEX "Running this policy at logout is not alllowed"
+	elif [[ "$checks" == *"macosupgrade"* ]] ; then
+		allow2RunAtLogout=false
+	elif [[ "$checks" == *"restart"* ]] || [[ "$checks" == *"logout"* ]] || [[ "$checks" == *"lockmac"* ]] || [[ "$checks" == *"saveallwork"* ]] ; then
+		allow2RunAtLogout=true
+	fi
+
+	if [[ "$allow2RunAtLogout" == true ]] ; then
 		PostponeMsg+="
 To run during a break or end of day, click 'at Logout'."
+
 	fi
 	fi
 
@@ -3202,7 +3260,9 @@ while [ $reqlooper = 1 ] ; do
 		log4_JSS "No apps need to be quit so $action can occur."
 		echo 0 > "$PostponeClickResultFile"
 		PostponeClickResult=0
-		skipNotices=true
+		if [[ "$selfservicePackage" != true ]] ; then
+			skipNotices=true
+		fi 
 		# Only run presentation delay if the user is alllowed to postpone and has postpones avalable
 		# this means that if they exhaust postpones its because they chose to and we only wiat a max of 3 hour for them to be try and delay after that presetaion delay is not possible
 	elif [[ "$presentationRunning" = true ]] && [[ $presentationDelayNumber -lt 3 ]] && [[ $selfservicePackage != true ]] && [[ "$checks" != *"critical"* ]] && [[ $maxdefer -ge 1 ]] && [[ $delayNumber -lt $maxdefer ]] ; then
@@ -3249,7 +3309,7 @@ while [ $reqlooper = 1 ] ; do
 				if [[ $delayNumber -ge $maxdefer ]] ; then 
 					log4_JSS "Showing the $action window. No postpones left"
 					"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -button1 "OK" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
-				elif [[ "$checks" == *"restart"* ]] || [[ "$checks" == *"logout"* ]] || [[ "$checks" == *"macosupgrade"* ]] || [[ "$checks" == *"loginwindow"* ]] || [[ "$checks" == *"lockmac"* ]] || [[ "$checks" == *"saveallwork"* ]] ; then
+				elif [[ "$allow2RunAtLogout" == true ]] ; then
 					log4_JSS "Showing the $action window. Allowing for $action at logout. $postponesLeft postpones left"
 					"$jhPath" -windowType "$windowType" -lockHUD -title "$title" -heading "$heading" -description "$PostponeMsg" -showDelayOptions "$delayOptions" -button1 "OK" -button2 "at Logout" -icon "$icon" -windowPosition center -timeout $jhTimeOut | grep -v 239 > "$PostponeClickResultFile" &
 				else

@@ -6,13 +6,6 @@
 loggedInUser=$( /bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }' | grep -v root )
 
 ##########################################################################################
-##						Manual Jamf Interaction Configuration 							##
-##########################################################################################
-
-enable_filevault_reboot=false
-
-
-##########################################################################################
 ##						Get The Jamf Interaction Configuration 							##
 ##########################################################################################
 
@@ -34,6 +27,11 @@ customIcon="$(fn_read_uex_Preference "customIcon")"
 UexLightIcon="$(fn_read_uex_Preference "UexLightIcon")"
 UexDarkIcon="$(fn_read_uex_Preference "UexDarkIcon")"
 supportDarkModeWithOnlyCustomIcon="$(fn_read_uex_Preference "supportDarkModeWithOnlyCustomIcon")"
+
+enable_filevault_reboot="$(fn_read_uex_Preference "enableFilevaultReboot")"
+if [[ -z "$enable_filevault_reboot" ]] ; then
+	enable_filevault_reboot=false
+fi
 
 
 ##########################################################################################

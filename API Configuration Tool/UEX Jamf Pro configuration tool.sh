@@ -329,6 +329,21 @@ fi
 # "UEXresourcesInstaller-201903130155.pkg"
 # )
 
+RepairCheckinDefault="$(fn_read_uex_Preference "RepairCheckin")"
+RepairCheckinDefault="${RepairCheckinDefault:-Yes}"
+
+RepairCheckinMessage="Do you want to modify the Check-in Launch Daemon so that post action policies work by default?
+
+Please note that this is a work around and you should test this in a pre-production environment first!"
+fn_genericDialogCocoaDialogStyle3ButtonsWithDefaultButton "$title" "$RepairCheckinMessage" "" "Cancel" "No" "Yes" "" "$standardIcon" "$RepairCheckinDefault"
+RepairCheckinAnswer="$myTempResult"
+
+
+if [[ "$RepairCheckinAnswer" != "$RepairCheckinDefault" ]]; then
+	#statements
+	fn_Check2SaveDefault "RepairCheckin" "$RepairCheckinDefault" "$RepairCheckinAnswer"
+fi
+
 # This enables the interaction for Help Disk Tickets
 # By default it is disabled. For more info on how to use this check the wiki in the Help Desk Ticket Section
 
@@ -355,7 +370,7 @@ fi
 if [[ "$helpTicketsEnabledViaAppRestriction" == true ]] ;then
 	
 	restrictedAppNameDefault="$(fn_read_uex_Preference "restrictedAppNameDefault")"
-	restrictedAppNameDefault="${restrictedAppNameDefault:-User Needs Helps Clearing Space.app}"
+	restrictedAppNameDefault="${restrictedAppNameDefault:-User Needs Help Clearing Space.app}"
 
 	fn_genericDialogCocoaDialogStyleAnswer "$title" "Enter the name of the App for the app restriction." "" "$restrictedAppNameDefault" "Cancel" "OK" "" "$standardIcon"
 	restrictedAppName="$myTempResult"
@@ -396,7 +411,7 @@ fi
 if [[ "$helpTicketsEnabledViaGeneralStaticGroup" == true ]] ;then
 	
 	staticGroupNameDefault="$(fn_read_uex_Preference "staticGroupNameDefault")"
-	staticGroupNameDefault="${staticGroupNameDefault:-User Needs Helps Clearing Space}"
+	staticGroupNameDefault="${staticGroupNameDefault:-User Needs Help Clearing Space}"
 
 	fn_genericDialogCocoaDialogStyleAnswer "$title" "Enter the tag for the Static Group." "" "$staticGroupNameDefault" "Cancel" "OK" "" "$standardIcon"
 	staticGroupName="$myTempResult"
@@ -422,6 +437,8 @@ fi
 scripts=(
 	"00-PleaseWaitUpdater-jss"
 	"00-UEX-Deploy-via-Trigger"
+	"00-UEX-Install-Silent-via-trigger"
+	"00-UEX-Fix-Check-in-Daemon-jss"
 	"00-UEX-Install-Silent-via-trigger"
 	"00-UEX-Install-via-Self-Service"
 	"00-UEX-Jamf-Interaction-no-grep"
@@ -471,6 +488,8 @@ FNputXML ()
     		#statements
     		echo "ERROR: There was a problem updating $1: $2"
     		echo "$result"
+			fn_genericDialogCocoaDialogStyleError "ERROR: There was a problem updating \"$1\": \"$2\"" "$standardIcon" "1"
+
     	fi
 
     }
@@ -489,6 +508,8 @@ FNpostXML ()
     		#statements
     		echo "ERROR: There was a problem with creating a new $1: $name"
     		echo "$result"
+			fn_genericDialogCocoaDialogStyleError "ERROR: There was a problem with creating a new \"$1\": \"$name\"" "$standardIcon" "1"
+
     	fi
 
     }
@@ -498,6 +519,11 @@ FNput_postXML ()
 
 	FNgetID "$1" "$2"
 	pid=$retreivedID
+
+	# if [[ "$debug" == true ]]; then
+	# 	#statements
+
+	# fi
 
 	if [ "$pid" ] ; then
 		echo "updating $1: ($pid) \"$2\"" 
@@ -700,11 +726,11 @@ fn_checkForSMTPServer () {
 	/usr/bin/curl ${curlOptions} -k "${jss_url}/JSSResource/smtpserver" -u "${jss_user}:${jss_pass}" -H "Accept: application/xml" | /usr/bin/xmllint --format - | grep -c "<enabled>true</enabled>"
 }
 
-fn_createTriggerPolicy () {
+fn_createDeferalPolicy () {
 	local triggerPolicyName="$1"
 	local policyTrigger2Run="$2"
 	FNgetID "scripts" "00-UEX-Deploy-via-Trigger"
-	local triggerScripID="$retreivedID"
+	local triggerScriptID="$retreivedID"
 	local triggerPolicyScopeXML="$3"
 
 	local triggerPolicyXML="<policy>
@@ -724,9 +750,42 @@ fn_createTriggerPolicy () {
   <scripts>
     <size>1</size>
     <script>
-      <id>$triggerScripID</id>
+      <id>$triggerScriptID</id>
       <priority>After</priority>
       <parameter4>$policyTrigger2Run</parameter4>
+    </script>
+  </scripts>
+</policy>"
+
+FNput_postXML "policies" "$triggerPolicyName" "$triggerPolicyXML"
+
+}
+
+fn_createRepairCheckInPolicy () {
+	local triggerPolicyName="$1"
+	local script2Run="$2"
+	FNgetID "scripts" "$script2Run"
+	local triggerScriptID="$retreivedID"
+	local triggerPolicyScopeXML="$3"
+
+	local triggerPolicyXML="<policy>
+  <general>
+    <name>$triggerPolicyName</name>
+    <enabled>true</enabled>
+    <trigger_checkin>true</trigger_checkin>
+    <frequency>Once every week</frequency>
+    <category>
+      <id>$UEXCategoryID</id>
+    </category>
+  </general>
+  <scope>
+	$triggerPolicyScopeXML
+  </scope>
+  <scripts>
+    <size>1</size>
+    <script>
+      <id>$triggerScriptID</id>
+      <priority>After</priority>
     </script>
   </scripts>
 </policy>"
@@ -889,8 +948,10 @@ fn_create_staticGroup_for_Disk_Space () {
 }
 
 fn_create_MonititoringSmartGroup_for_Disk_Space () {
+	monitoringSmartGroupName="Monitoring - UEX - Group:$staticGroupName"
+
 	SmartGroupXMLForDiskSpace="<computer_group>
-  <name>Monitoring - UEX - Group:$staticGroupName</name>
+  <name>$monitoringSmartGroupName</name>
   <is_smart>true</is_smart>
   <site>
     <id>-1</id>
@@ -910,11 +971,11 @@ fn_create_MonititoringSmartGroup_for_Disk_Space () {
   </criteria>
 </computer_group>"
 
-	FNput_postXML "computergroups" "Monitoring - UEX - Group:$staticGroupName" "$SmartGroupXMLForDiskSpace"
+	FNput_postXML "computergroups" "$monitoringSmartGroupName" "$SmartGroupXMLForDiskSpace"
 }
 
 fn_openMonitoringSmartGroup () {
-	FNgetID "computergroups" "Monitoring - UEX - $staticGroupName"
+	FNgetID "computergroups" "$monitoringSmartGroupName"
 	MonitoringGroupID="$retreivedID"
 	sudo -u "$loggedInUser" -H open "$jss_url/smartComputerGroups.html?id=$MonitoringGroupID&o=u"
 }
@@ -956,6 +1017,7 @@ if [[ "$helpTicketsEnabledViaGeneralStaticGroup" = true ]]; then
 	
 	for apiScript in "${apiScripts[@]}" ; do
 		fn_setScriptParameters "$apiScript" "Group Name" "JSS URL - No Trailing Slash" "JSS Username (encrypted)" "JSS Password (encrypted)"
+		
 	done
 
 	fn_createAPIPolicy "00-API-Add-Current-Computer-to-Static-Group" "$UEXhelpticketTrigger" "$staticGroupName" "$jss_url"
@@ -998,7 +1060,7 @@ fi
 
 	# "Vendor;AppName;Version;SpaceReq"
 	# "Checks"
-	# "Apps for Quick and Block"
+	# "Apps to Quit or Block"
 	# "InstallDuration - Must be integer"
 	# "MaxDefer;DiskTicketLimit"
 	# "Packages separated by ;"
@@ -1006,7 +1068,7 @@ fi
 	# "Custom Message - optional"
 
 	for UEXInteractionScript in "${UEXInteractionScripts[@]}" ; do
-		fn_setScriptParameters "$UEXInteractionScript" "Vendor;AppName;Version;SpaceReq" "Checks" "Apps for Quick and Block" "InstallDuration - Must be integer" "MaxDefer;DiskTicketLimit" "Packages separated by ;" "Trigger Names separated by ;" "Custom Message - optional"
+		fn_setScriptParameters "$UEXInteractionScript" "Vendor;AppName;Version;SpaceReq" "Checks" "Apps to Quit or Block" "InstallDuration - Must be integer" "MaxDefer;DiskTicketLimit" "Packages separated by ;" "Trigger Names separated by ;" "Custom Message - optional"
 	done
 
 
@@ -1029,7 +1091,7 @@ fi
 	fi
 
 # Create smart group
-	smartGroupName="UEX - Active Deferrals"
+	deferralSmartGroupName="UEX - Active Deferrals"
 
 	criterionXML="<criterion>
 	      <name>$extAttrName</name>
@@ -1041,22 +1103,34 @@ fi
 	      <closing_paren>false</closing_paren>
 	    </criterion>"
 
-	fn_createSmartGroup "$smartGroupName" "1" "$criterionXML"
-	SmargroupID="$retreivedID"
+	
+	
+	fn_createSmartGroup "$deferralSmartGroupName" "1" "$criterionXML"
+	FNgetID "computergroups" "$deferralSmartGroupName"
+	SmartgroupID="$retreivedID"
 
 # create deferal policy
 defferalPolicyScopeXML="<all_computers>false</all_computers>
     <computers/>
     <computer_groups>
       <computer_group>
-        <id>$SmargroupID</id>
+        <id>$SmartgroupID</id>
       </computer_group>
     </computer_groups>"
 
-fn_createTriggerPolicy "00-uexdeferralservice-jss - Checkin and Logout" "uexdeferralservice" "$defferalPolicyScopeXML"
+# # new delay just in case group create takes awhile
+# sleep 2
+
+fn_createDeferalPolicy "00-uexdeferralservice-jss - Checkin and Logout" "uexdeferralservice" "$defferalPolicyScopeXML"
 
 # create UEX resources policy
 fn_createTriggerPolicy4Pkg "00-uexresources-jss - Trigger" "${packages[0]}" "uexresources" "<all_computers>true</all_computers>"
+
+# Create RepairCheckin policye
+
+if [[ "$RepairCheckinAnswer" == "Yes" ]] ; then  
+	fn_createRepairCheckInPolicy "00-UEX-Fix-Check-in-Daemon-jss - Checkin - Once Per Week" "00-UEX-Fix-Check-in-Daemon-jss" "<all_computers>true</all_computers>"
+fi
 
 if [[ "$helpTicketsEnabledViaGeneralStaticGroup" = true ]]; then
 	OpenNotification="Now Opening the Monitoring Smart Group
