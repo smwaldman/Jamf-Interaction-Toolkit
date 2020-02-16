@@ -34,13 +34,13 @@ The UEX Toolkit supports all types of deployment needs:
   * Prevent those apps from opening during the policy
   * Re-open apps previously quit after the policy runs.
 * Inform the user of a restart or logout before a policy starts
-  * Require the computer to be connected to [power](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/09-Checks...-All-the-Options-for-UEX#power)
-* Support running other policies after the user acknowledges a custom message [trigger](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/09-Checks...-All-the-Options-for-UEX#trigger)
-* Support forceful running of [Compliance Policies](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/05-Compliance-Policies)
-* [Detect if the user is in a presentation](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/99-Presentation-Delay)
-* [FileVault authenticated restarts](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/07-FileVault-Authenticated-Restarts)
-* [Apple Software Updates](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/04---Apple-Software-Updates-via-UEX)
-* [Detection of insufficient space and workflows to create tickets](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/06-Space-Detection-Notification-Service-Desk-Tickets)
+  * Require the computer to be connected to [power](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/wiki/09-Checks...-All-the-Options-for-UEX#power)
+* Support running other policies after the user acknowledges a custom message [trigger](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/wiki/09-Checks...-All-the-Options-for-UEX#trigger)
+* Support forceful running of [Compliance Policies](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/wiki/05-Compliance-Policies)
+* [Detect if the user is in a presentation](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/wiki/99-Presentation-Delay)
+* [FileVault authenticated restarts](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/wiki/07-FileVault-Authenticated-Restarts)
+* [Apple Software Updates](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/wiki/04---Apple-Software-Updates-via-UEX)
+* [Detection of insufficient space and workflows to create tickets](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/wiki/06-Space-Detection-Notification-Service-Desk-Tickets)
 
 # What does it look like?
 
@@ -50,19 +50,19 @@ The UEX Toolkit supports all types of deployment needs:
 ![](./images/google-chrome-preview.png) 
 
 # How to use it?
-1. Download the [latest release](https://github.com/cubandave/Jamf-Interaction-Toolkit/releases/latest)
-1. Please check out the [Wiki Here ](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki)
-1. Apply [Branding](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/00-Setting-up-UEX-Including-Branding-and-Customising-UEX)
-1. [Upload all required pieces to your Jamf Pro server.](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/00-Setting-up-UEX-Including-Branding-and-Customising-UEX#uploading-to-your-jamf-pro-server)
-1. Run the [API Config Tool](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/00-Setting-up-UEX-Including-Branding-and-Customising-UEX#api-config-tool)
-1. The world is your burrito. 🌯 ... [Creating Policies](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/01-Creating-a-UEX-Policy)
+1. Download the [latest release](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/releases/latest)
+1. Please check out the [Wiki Here ](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/wiki)
+1. Apply [Branding](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/wiki/00-Setting-up-UEX-Including-Branding-and-Customising-UEX)
+1. [Upload all required pieces to your Jamf Pro server.](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/wiki/00-Setting-up-UEX-Including-Branding-and-Customising-UEX#uploading-to-your-jamf-pro-server)
+1. Run the [API Config Tool](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/wiki/00-Setting-up-UEX-Including-Branding-and-Customising-UEX#api-config-tool)
+1. The world is your burrito. 🌯 ... [Creating Policies](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/wiki/01-Creating-a-UEX-Policy)
 
 ![](./images/uex-API-config.gif)
 
 
 # How to upgrade?
 
-* Check out the [new wiki](https://github.com/cubandave/Jamf-Interaction-Toolkit/wiki/00-Upgrading-from-Previous-Version-of-UEX) to see how easy it is to upgrade.
+* Check out the [new wiki](https://github.com/green-philodendron/Jamf-Interaction-Toolkit/wiki/00-Upgrading-from-Previous-Version-of-UEX) to see how easy it is to upgrade.
 
 
 
