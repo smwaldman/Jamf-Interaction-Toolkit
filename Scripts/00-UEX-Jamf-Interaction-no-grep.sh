@@ -1205,7 +1205,7 @@ fn_ProcessMsUpdateTargetApp () {
 		msUpdatePackageString="Outlook"
 		msUpdateString="Outlook"
 			;;
-		*"powerpoint"* )
+		*"ppoint"* )
 		log4_JSS "UEX is set to check for and install updates only for Microsoft PowerPoint"
 		msUpdatePackageString="PowerPoint"
 		msUpdateString="PowerPoint"
@@ -1344,6 +1344,10 @@ fn_downloadMSupdatePackages () {
 
 if [[ "$checks" == *"msupdate"* ]] ; then
 	msupdate=true
+	# Powerpoint doesn't need Power...DUH
+	if [[ "$checks" == *"powerpoint"* ]] ;then 
+		checks="${checks/powerpoint/ppoint}"
+	fi
 fi
 
 if [[ "$msupdate" = true ]] ; then
@@ -2845,6 +2849,8 @@ if [[ $selfservicePackage != true ]] && [[ "$checks" != *"critical"* ]] && [[ $d
 		allow2RunAtLogout=false
 	elif [[ "$checks" == *"restart"* ]] || [[ "$checks" == *"logout"* ]] || [[ "$checks" == *"lockmac"* ]] || [[ "$checks" == *"saveallwork"* ]] ; then
 		allow2RunAtLogout=true
+	else
+		allow2RunAtLogout=false
 	fi
 
 	if [[ "$allow2RunAtLogout" == true ]] ; then
