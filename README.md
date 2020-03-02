@@ -30,7 +30,7 @@ You can just use it for your next **macOS Upgrade**.
 
 The UEX Toolkit supports all types of deployment needs:
 
-* User needs to Quit an application[s] before an policy starts
+* User needs to Quit an application[s] before a policy starts
   * Prevent those apps from opening during the policy
   * Re-open apps previously quit after the policy runs.
 * Inform the user of a restart or logout before a policy starts
