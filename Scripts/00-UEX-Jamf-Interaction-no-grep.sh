@@ -2,7 +2,7 @@
 ##########################################################################################
 ##									Script Information									##
 ##########################################################################################
-sfdc_uexvers="1.3.13"
+uexvers="1.3.13"
 #
 # Created Jan 18, 2016 by David Ramirez
 #
@@ -259,7 +259,7 @@ IFS=";"
 declare -a triggers=($*)
 unset IFS
 
-AppVendor="SFDC"
+AppVendor="UEX"
 AppName="Mandatory Patching"
 AppVersion="1.0"
 packageName="UEX;ClientPatching;1.0"
@@ -314,7 +314,7 @@ chmod -R 777 "$logdir"
 echo ""
 logInUEX "******* Script Started ******"
 logInUEX4DebugMode "DEBUG MODE: ON"
-logInUEX "User Experience Version: $sfdc_uexvers"
+logInUEX "User Experience Version: $uexvers"
 logInUEX "checks=$checks"
 logInUEX "altpaths=${altpaths[@]}"
 logInUEX "maxdefer=$maxdefer"
@@ -2046,8 +2046,8 @@ for i in $plists; do
 done
 
 #remove plist before shutdowns to prevent daemon from launching at startup
-if [[ -e "/Library/LaunchDaemons/com.sfdc-patching.uex.plist" ]]; then
-	rm -f /Library/LaunchDaemons/com.sfdc-patching.uex.plist
+if [[ -e "/Library/LaunchDaemons/com.patching.uex.plist" ]]; then
+	rm -f /Library/LaunchDaemons/com.patching.uex.plist
 	logInUEX "Deleting Daemon plist so the agent does not start again"
 fi
 
@@ -2093,14 +2093,14 @@ if [[ "$InventoryUpdateRequired" == true ]] && [[ $packages != "" ]]; then
 fi
 
 # check if launchdaemon is running
-launchdstatus=$(launchctl list | grep -i com.sfdc-patching.uex | awk {'print $3'})
+launchdstatus=$(launchctl list | grep -i com.patching.uex | awk {'print $3'})
 if [[ "$launchdstatus" != "" ]]; then
 	logInUEX "unloading uex agent"
 	logInUEX "******* Script Complete *******"
 	echo "" >> "$logfilepath"
 	log2Jamf
-	launchctl unload /Library/LaunchDaemons/com.sfdc-patching.uex.plist
-	launchctl remove com.sfdc-patching.uex	# patching is completed remove the agent
+	launchctl unload /Library/LaunchDaemons/com.patching.uex.plist
+	launchctl remove com.patching.uex	# patching is completed remove the agent
 fi
 
 logInUEX "******* Script Complete *******"
